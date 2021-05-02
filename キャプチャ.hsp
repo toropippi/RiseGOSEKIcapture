@@ -232,6 +232,7 @@ stop
 
 	//カットオフ表示
 	pos 0,206
+	font "メイリオ",20,1
 	color 0,0,0
 	mes "精度カットオフ値 = "+sliderstat
 
