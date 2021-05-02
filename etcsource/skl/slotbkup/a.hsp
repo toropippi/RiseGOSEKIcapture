@@ -1,0 +1,35 @@
+#include "hspcv.as"
+
+repeat 4
+
+buffer 1:picload ""+cnt+".png"
+
+repeat 44
+ccnt=cnt
+	repeat 44
+	pget ccnt,cnt
+	r=ginfo_r
+	g=ginfo_g
+	b=ginfo_b
+	sum=r+g+b
+	if (sum<320){
+		color 0,0,0
+		pset  ccnt,cnt
+	}
+	loop
+loop
+
+
+buffer 2,36,28
+pos 0,0
+gcopy 1,1,5,36,28
+
+cvbuffer 0,36,28
+cvputimg 0
+cvsave "d\\"+cnt+".png"
+ 
+
+loop
+
+
+end

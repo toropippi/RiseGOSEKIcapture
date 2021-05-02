@@ -1,0 +1,117 @@
+#include "hspcv.as"
+
+	//      スキル1,スキル2 ,Lv1     ,Lv2     ,スロ画像,紙の護石,スロット,装備スキル
+	xylist=48  ,194,48  ,270,285 ,228,285 ,304,243 ,92 ,77  ,20 ,20  ,100,135 ,156
+	szlist=220 ,32 ,220 ,32 ,96  ,36 ,96  ,36 ,132 ,44 ,140 ,36 ,128 ,32 ,132 ,30
+
+	
+ssx=40
+ssy=40
+
+sdim s5,128
+s5=dir_cur
+gnm=0
+dim grgb,160,200*28*3
+
+chdir "skl"
+	repeat 160
+	exist ""+cnt+".png"
+	if strsize==-1:break
+	buffer 10+cnt,200,28
+	picload ""+cnt+".png"
+	//cvload ""+cnt+".png",10+cnt
+	gosub*bmptoar
+	gnm++
+	loop
+chdir s5
+gsel 0
+
+
+buffer 2,ssx,ssy
+start=24
+endf=3160
+
+	repeat endf-start+1,start
+	buffer 1:picload "10\\_"+(strf("%06d",cnt))+".png"
+	gsel 2
+	gcopy 1,1552+243-48+4,400+92-194+2,ssx,ssy
+	gosub*chk
+
+	gsel 0
+	title ""+(cnt-start)+""
+	await 1
+	loop
+
+end
+
+
+
+
+*chk
+	flg=-1
+	//2とすべてを比較したい
+	if gnm!=0{
+		dim nlm,gnm
+		xxxxxx=0
+			repeat ssx
+			cntx=cnt
+				repeat ssy
+				pget cntx,cnt
+					repeat gnm
+					tmp=abs(grgb.cnt.xxxxxx-ginfo_r)+abs(grgb.cnt.(xxxxxx+1)-ginfo_g)+abs(grgb.cnt.(xxxxxx+2)-ginfo_b)
+					tmp=tmp*tmp
+					if tmp>27000{
+						nlm.cnt+=tmp
+					}
+					loop
+				xxxxxx+=3
+				loop
+			loop
+		//スコアから検証
+		nmsc=999999
+			repeat gnm
+			if nlm.cnt<200000{
+				if nmsc>nlm.cnt{
+					nmsc=nlm.cnt
+					flg=cnt
+				}
+			}
+			loop
+	}
+	if flg==-1{
+		buffer 10+gnm,ssx,ssy
+		pos 0,0
+		gcopy 2,0,0,ssx,ssy
+		//bmpsave "skl\\"+gnm+".bmp"
+		cvbuffer 10,ssx,ssy
+		cvputimg 10
+		cvsave "skl\\"+gnm+".png",10
+		gosub*bmptoar
+		gnm++
+		gsel 0
+	}
+	return
+
+
+//gsel idを指定すると配列に内容を格納
+*bmptoar
+	_gid=ginfo(3)-10
+	xxxxxx=0
+		repeat ssx
+		cntx=cnt
+			repeat ssy
+			pget cntx,cnt
+			grgb._gid.xxxxxx=ginfo_r
+			xxxxxx++
+			grgb._gid.xxxxxx=ginfo_g
+			xxxxxx++
+			grgb._gid.xxxxxx=ginfo_b
+			xxxxxx++
+			loop
+		loop
+	return
+
+/*
+_010605.png
+_012608.png
+*/

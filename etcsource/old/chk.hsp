@@ -1,0 +1,40 @@
+buffer 1:picload "_002367.png"
+
+repeat 1920
+cntx=cnt
+repeat 1080
+pget cntx,cnt
+gosub*chkcol
+if flg==1{
+	pget cntx-1,cnt
+	gosub*chkcol
+	if flg==0{
+		pget cntx,cnt-1
+		gosub*chkcol
+		if flg==0{
+			gsel 0
+			mes ""+cntx+"/"+cnt+""
+			gsel 1
+		}
+	}
+}
+loop
+loop
+
+stop
+
+
+
+*chkcol
+	flg=0
+	r=ginfo_r
+	g=ginfo_g
+	b=ginfo_b
+	if r==255{
+		if g==174{
+			if b==201{
+				flg=1
+			}
+		}
+	}
+	return

@@ -1,0 +1,24 @@
+buffer 1:picload "49.png"
+buffer 2:picload "_______zzz0.bmp"
+
+screen 0,2580,800
+	repeat 76
+	ccnt=cnt
+		repeat 28
+		gsel 1
+		pget ccnt,cnt
+		r=ginfo_r
+		g=ginfo_g
+		b=ginfo_b
+		gsel 2
+		pget ccnt+4,cnt+3
+
+		sm=abs(r-ginfo_r)
+		//+abs(g-ginfo_g)
+		//+abs(b-ginfo_b)
+		gsel 0
+		pos ccnt*30,cnt*14
+		mes sm
+	
+		loop
+	loop

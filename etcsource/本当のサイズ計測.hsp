@@ -1,0 +1,148 @@
+; #define USE_CALLBACK
+
+#ifdef USE_CALLBACK
+#include "mod_clbk3.hsp"
+#endif
+#include "user32.as"
+#include "gdi32.as"
+
+  ; 仮想画面の原点・サイズ取得
+  GetSystemMetrics $4c ; SM_XVIRTUALSCREEN
+  vsOriginX = stat
+  GetSystemMetrics $4d ; SM_YVIRTUALSCREEN
+  vsOriginY = stat
+  GetSystemMetrics $4e ; SM_CXVIRTUALSCREEN
+  vsSizeX = stat
+  GetSystemMetrics $4f ; SM_CYVIRTUALSCREEN
+  vsSizeY = stat
+
+  dim hmoni
+  moniNum = 0
+
+#ifdef USE_CALLBACK
+  ; コールバックを使ってモニタハンドルを列挙
+  newclbk3 clbk, 4, *MonitorEnumProc
+  EnumDisplayMonitors 0, 0, clbk, 0
+  if 0 {
+  *MonitorEnumProc
+    clbkargprotect prm
+    hmoni(moniNum) = prm(0)
+    moniNum++
+    return 1
+  }
+#else
+  ; 仮想画面上の各点を調べてモニタハンドルを列挙
+  sft = 100 ; 調べる各点の間隔
+  repeat
+    x = vsOriginX + cnt * sft \ vsSizeX
+    y = vsOriginY + cnt * sft / vsSizeX * sft
+    if (y > vsSizeY) : break
+    MonitorFromPoint x, y, 0 ; MONITOR_DEFAULTTONULL
+    h = stat
+    if (h == 0) : continue
+    f = 0
+    if (moniNum) {
+      ; ハンドルの重複チェック
+      repeat moniNum
+        if (h == hmoni(cnt)) : break
+        if (cnt == moniNum - 1) : f = 1
+      loop
+    } else {
+      f = 1
+    }
+    if (f) {
+      hmoni(moniNum) = h
+      moniNum++
+    }
+  loop
+#endif
+
+  ; 各ディスプレイの情報取得
+  dim moniInfo, 10 + 8  ; MONITORINFOEX
+      moniInfo(0) = 40 + 32
+  dim devMode, 44 ; DEVMODE
+  dim px, moniNum
+  dim py, moniNum
+  dim sx, moniNum
+  dim sy, moniNum
+  dim bit, moniNum
+  dim hz, moniNum
+  dim flag, moniNum
+  sdim dn, 32, moniNum
+  repeat moniNum
+    GetMonitorInfo hmoni(cnt), varptr(moniInfo)
+    px(cnt) = moniInfo(1) ; rcMonitor.left
+    py(cnt) = moniInfo(2) ; rcMonitor.top
+    flag(cnt) = moniInfo(9) ; dwFlags
+    getstr dn(cnt), moniInfo, 40 ; szDevice
+    EnumDisplaySettings dn(cnt), -1, varptr(devMode) ; ENUM_CURRENT_SETTINGS
+    sx(cnt) = devMode(27) ; dmPelsWidth
+    sy(cnt) = devMode(28) ; dmPelsHeight
+    bit(cnt) = devMode(26) ; dmBitsPerPel
+    hz(cnt) = devMode(30) ; dmDisplayFrequency
+  loop
+  
+  ; デスクトップ全体のビットマップを取得
+  buffer 1, vsSizeX, vsSizeY
+  GetDC 0
+  dc = stat
+  BitBlt hdc, 0, 0, vsSizeX, vsSizeY, dc, vsOriginX, vsOriginY, $40CC0020 ; SRCCOPY | CAPTUREBLT
+  ReleaseDC 0, dc
+  celdiv 1, , , vsSizeX / 2, vsSizeY / 2
+  
+  ; 以下描画
+  
+  ; screen 0, 1024, 768
+  gsel
+  winsx = ginfo_sx
+  winsy = ginfo_sy
+  
+  if (vsSizeX > vsSizeY * winsx / winsy) {
+    rate = double(winsx - 40) / vsSizeX
+    dox = 20
+    doy = winsy / 2 - rate * vsSizeY / 2
+  } else {
+    rate = double(winsy - 40) / vsSizeY
+    dox = winsx / 2 - rate * vsSizeX / 2
+    doy = 20
+  }
+  
+  font "arial", 12
+  
+  color 220, 220, 220
+  box vsOriginX, vsOriginY, vsSizeX, vsSizeY
+  pos ginfo_cx, ginfo_cy - 16
+  color
+  mes strf("pos(%d, %d), res(%d x %d)", vsOriginX, vsOriginY, vsSizeX, vsSizeY)
+  repeat moniNum
+    if (flag(cnt)) {
+      color 220, 170, 170
+    } else {
+      color 150, 200, 200
+    }
+    box px(cnt), py(cnt), sx(cnt), sy(cnt)
+    pos ginfo_cx + 6, ginfo_cy + 4
+    color
+    mes strf("pos(%d, %d)", px(cnt), py(cnt))
+    mes strf("res(%d x %d)", sx(cnt), sy(cnt))
+    mes strf("color %d bit", bit(cnt))
+    mes strf("refresh %d hz", hz(cnt))
+    mes dn(cnt)
+  loop
+  
+  gmode 5, vsSizeX, vsSizeY, 40
+  pos winsx / 2, winsy / 2
+  celput 1, 0, rate, rate
+  
+  stop
+
+#deffunc box int _x, int _y, int _w, int _h
+  x1 = rate * (_x - vsOriginX) + dox
+  y1 = rate * (_y - vsOriginY) + doy
+  x2 = rate * (_x + _w - vsOriginX) + dox
+  y2 = rate * (_y + _h - vsOriginY) + doy
+  boxf x1, y1, x2 - 1, y2 - 1
+  color ginfo_r + 20, ginfo_g + 20, ginfo_b + 20
+  boxf x1 + 4, y1 + 4, x2 - 5, y2 - 5
+  pos x1, y1
+  return

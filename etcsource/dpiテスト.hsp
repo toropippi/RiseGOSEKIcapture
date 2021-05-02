@@ -1,0 +1,2 @@
+#include "hdpi.hsp"
+screen 1,640,480,0,0,0,640,480

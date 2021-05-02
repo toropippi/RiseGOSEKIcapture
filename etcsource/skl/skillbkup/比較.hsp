@@ -1,0 +1,55 @@
+mes dir_cur
+buffer 1:picload "91.png"
+buffer 2:picload "53.png"
+
+sc=0
+	repeat 200
+	cntx=cnt
+		repeat 28
+		gsel 1
+		pget cntx,cnt
+		r=ginfo_r
+		g=ginfo_g
+		b=ginfo_b
+		gsel 2
+		pget cntx,cnt
+		tmp=abs(r-ginfo_r)+abs(g-ginfo_g)+abs(b-ginfo_b)
+		tmp=tmp*tmp
+		if tmp>27000{
+			sc+=tmp
+			color 255,0,0
+			pset cntx,cnt
+		}
+		loop
+	loop
+
+gsel 0
+mes sc
+
+gsel 2
+bmpsave "aaa.bmp"
+
+
+
+/*
+#include "hspcv.as"
+
+cvbuffer 0,200,28
+
+id=0
+
+repeat 120
+exist ""+cnt+".png"
+if strsize!=-1{
+	cvload ""+cnt+".png",0
+	wait 4
+	delete ""+cnt+".png"
+	wait 5
+	cvsave ""+id+".png",0
+	id++
+	
+}
+loop
+
+end
+*/
