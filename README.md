@@ -33,10 +33,11 @@
 ### コピペ
  <img width="481" alt="5" src="https://user-images.githubusercontent.com/44022497/116805875-5240f480-ab64-11eb-9adc-5368d032895d.png">  
  <img width="584" alt="6" src="https://user-images.githubusercontent.com/44022497/116805876-5240f480-ab64-11eb-8266-75ff9da4b801.png">  
- テキスト出力はTab区切りで  
- 「スキル名1,Lv,スキル名2,Lv,スロA,スロB,スロC,護石のRARE度」  
- となっています。  
- 
+  
+テキスト出力はTab区切りで  
+「スキル名1,Lv,スキル名2,Lv,スロA,スロB,スロC,護石のRARE度」  
+となっています。  
+  
 ## スキル文字認識の原理
  テンプレートマッチングみたいなことをやってます。  
  そのうちディープラーニングで認識精度と速度の両立を図りたい・・・  
