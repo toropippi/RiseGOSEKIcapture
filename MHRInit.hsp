@@ -1,0 +1,208 @@
+#include "MHRise.as"//自作
+goto*________________________________end_this_source2
+
+#module
+//http://hsp.tv/play/pforum.php?mode=pastwch&num=2653
+// 360度 周期を 192度にする
+#define _PI 96.0
+#define _2PI 192.0
+
+
+#defcfunc max int p1, int p2
+	if p1 < p2 : return p2
+	return p1
+
+#defcfunc min int p1, int p2
+	if p1 < p2 : return p1
+	return p2
+
+#deffunc toHSV var H, var S, var V, int R, int G, int B
+
+	V = max(max(R, G), B)
+	u = min(min(R, G), B)
+
+	if V {
+		S = 255.0 * (V - u) / V
+	} else {
+		S = 0.0
+	}
+	if (V == u){
+		S=0
+		H=0
+		return
+	}
+
+	if V == R {
+		H = _PI / 3 * (G - B) / (V - u); _PI/3 = 32
+	}
+	else : if V == G {
+		H = _PI / 3 * (2.0 + double(B - R) / (V - u))
+	}
+	else {
+		H = _PI / 3 * (4.0 + double(R - G) / (V - u) )
+	}
+	if H < 0.0 : H + _2PI
+
+	H=int(H)
+	S=int(S)
+	return
+
+#global
+
+//初期設定ここから
+//0:赤いリージョンウィンドウ、1:くり抜くsrc、2:メインウィンドウ、3:キャプチャされた画像がはいるバッファ、
+//4:スキル1,5:スキル2,6:Lv1,7:Lv2,8:スロ画像,9:神の護石
+//12,13スキル順位表
+*ScreenSetting
+	gosub*Screen0Init
+	gosub*Screen1Init
+	
+	;//https://wiki.hsp.moe/%E4%B8%8D%E5%AE%9A%E5%BD%A2%E3%83%AA%E3%83%BC%E3%82%B8%E3%83%A7%E3%83%B3.html
+	;//http://hsp.tv/play/pforum.php?mode=pastwch&num=24700
+	//くり抜き実行
+	CreateWindowRgn 0,1,0,0,0
+	gosub*Screen2Init
+	gosub*Screen3to9Init
+	return
+
+*ValArraySetting
+	SKLALLSTR="ＫＯ術","アイテム使用強化","ガード強化","ガード性能","キノコ大好き","ジャンプ鉄人","スタミナ急速回復","スタミナ奪取","ひるみ軽減","フルチャージ","ブレ抑制","ボマー","ランナー","火事場力","火属性攻撃強化","火耐性","会心撃【属性】","回避距離ＵＰ","回避性能","回復速度","滑走強化","貫通弾・貫通矢強化","気絶耐性","鬼火纏","逆恨み","逆襲","強化持続","業物","見切り","幸運","広域化","攻めの守勢","攻撃","高速変形","剛刃研磨","散弾・拡散矢強化","死中に活","耳栓","弱点特効","集中","匠","乗り名人","植生学","心眼","水属性攻撃強化","水耐性","睡眠属性強化","睡眠耐性","精霊の加護","早食い","装填拡張","装填速度","速射強化","属性やられ耐性","体術","体力回復量ＵＰ","耐震","弾丸節約","弾導強化","地質学","挑戦者","超会心","通常弾・連射矢強化","泥雪耐性","笛吹き名人","砥石使用高速化","特殊射撃強化","毒属性強化","毒耐性","鈍器使い","納刀術","破壊王","剥ぎ取り鉄人","爆破やられ耐性","爆破属性強化","抜刀術【技】","抜刀術【力】","反動軽減","飛び込み","氷属性攻撃強化","氷耐性","不屈","風圧耐性","腹減り耐性","壁面移動","泡沫の舞","砲術","砲弾装填","防御","麻痺属性強化","麻痺耐性","満足感","陽動","雷属性攻撃強化","雷耐性","龍属性攻撃強化","龍耐性","力の解放","渾身","翔蟲使い","－－－","－－－－"
+	sdim SKLALLSTR2,18,102
+		repeat 102
+		ccnt=cnt
+		SKLALLSTR2.ccnt=SKLALLSTR.ccnt
+			repeat 18-strlen(SKLALLSTR.ccnt)
+			SKLALLSTR2.ccnt+=" "
+			loop
+		loop
+	sklstr1=""
+	sklstr2=""
+	last_out1line=""
+	out1line=""
+	onexit goto *endlabel//終了ボタン押したとき
+	return
+
+//くり抜かれる側
+*Screen0Init
+	wx=400//キャプチャサイズ
+	wy=348//キャプチャサイズ
+#const bdr 2//ボーダーサイズ、bgscrのくり抜きはボーダーこの3倍になる
+	bgscr 0,wx,wy,0,0,20
+	gsel 0,2
+	color 0,149,0
+	boxf
+	onclick gosub *idou;▼マウスドラッグによるウィンドウ移動
+	return
+
+//くり抜く側
+*Screen1Init
+	buffer 1,wx,wy
+	color 0,0,0:boxf
+	//      スキル1,スキル2 ,Lv1     ,Lv2     ,スロ画像,紙の護石,スロット,装備スキル
+	xylist=48  ,194,48  ,270,285 ,228,285 ,304,243 ,92 ,77  ,20 ,20  ,100,135 ,156
+	szlist=220 ,32 ,220 ,32 ,96  ,36 ,96  ,36 ,132 ,44 ,140 ,36 ,128 ,32 ,132 ,30
+
+		repeat 8
+		xx=xylist.(cnt*2)
+		yy=xylist.(cnt*2+1)
+		sxx=szlist.(cnt*2)
+		syy=szlist.(cnt*2+1)
+		//外側		
+		color 255,255,255
+		boxf xx-bdr*3,yy-bdr*3,xx+sxx+bdr*3,yy+syy+bdr*3
+		//内側
+		color 0,0,0
+		boxf xx,yy,xx+sxx,yy+syy
+		loop
+	return
+
+//表示screen
+*Screen2Init
+	screen 2,440+520,760,0,400,20
+	pos 400,0
+	objsize 40,40
+	button gosub "←",*ONorOFF
+	buttonstatid=stat
+	//http://lhsp.s206.xrea.com/hsp_object7.html
+	;	トラックバー設置 (デフォルト範囲は0～100)
+	;	ウィンドウスタイルに目盛り自動表示 ($1=TBS_AUTOTICKS)
+	pos 0,244
+	winobj "msctls_trackbar32", "", , $50000000 | $1, 432, 30
+	;	このトラックバーのウィンドウハンドル取得
+	hTrackbar = objinfo(stat, 2)
+	;	つまみの位置 38 (TBM_SETPOS)
+	sendmsg hTrackbar, $405, 1, 38
+	;	バーの目盛り間隔 4 (TBM_SETTICFREQ)
+	sendmsg hTrackbar, $414, 4
+	;	リアルタイムで垂直バーの動きを見たい (WM_VSCROLL)
+	;	(水平バーの場合はWM_HSCROLLを)
+	oncmd gosub *vscroll, $114
+	
+	//カットオフ値
+	sliderstat=int(expf(0.09903487552536128045*38.0)*100000.0)
+
+	pos 440,0
+	sdim outtxt,32767
+	//outtxt+="スキル1	LV	スキル2	LV	スロA	スロB	スロC	RARE\n"
+	mesbox outtxt,520-4,756,5
+	msbxmainid=stat
+	font "メイリオ",18,1
+	return
+
+*ONorOFF
+	ONorOFFswitch=1-ONorOFFswitch//1がオフ、0がオン
+	gsel 2
+	if ONorOFFswitch==1{
+		objprm buttonstatid,"→"
+		width 440, 760
+	}else{
+		objprm buttonstatid,"←"
+		width 440+520, 760
+		//更新
+		objprm msbxmainid,outtxt
+		}
+	return
+
+*Screen3to9Init
+	buffer 3,wx,wy//キャプチャされた画像がはいるバッファ
+	//キャプチャされた画像からさらに分離した画像がはいるバッファ
+	dim _xsz,6
+	dim _ysz,6
+		repeat 6
+		_xsz.cnt=szlist.(cnt*2)+bdr*2
+		_ysz.cnt=szlist.(cnt*2+1)+bdr*2
+		buffer 4+cnt,_xsz.cnt,_ysz.cnt
+		loop
+		
+	gsel 4
+	mref mrefv4,66
+	gsel 5
+	mref mrefv5,66
+	gsel 8
+	mref mrefv8,66
+	return
+
+
+//スキル画像100をロードしてプラグインのほうに受け渡し
+*Fileload
+		repeat 100
+		buffer 10:picload "skill\\"+cnt+".png"
+		mref mrefv,66
+		Set100TpBuf cnt,mrefv
+		loop
+	return
+
+//スロット画像などをロードしてプラグインのほうに受け渡し
+*Fileload2
+	//スロット画像
+		repeat 4
+		buffer 10:picload "slot\\"+cnt+".png"
+		xx=ginfo(12)
+		yy=ginfo(13)
+		mref mrefv,66
+		SetUserTpBuf cnt,xx,yy,mrefv
+		loop
+	return
+
+
+*________________________________end_this_source2

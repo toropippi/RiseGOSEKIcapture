@@ -1,0 +1,158 @@
+//ウィンドウリージョンと高dpiのモジュール 両方をロード
+//あとスクショのモジュールも
+#include "user32.as"
+#include "gdi32.as"
+#include "winmm.as"    // これはリージョン作成に直接関係無し
+
+#define NULL        0
+#define SRCCOPY     0x00CC0020
+#define CAPTUREBLT  0x40000000
+
+// ウィンドウ移動制御用の定数
+#define global WM_NCLBUTTONDOWN     $000000A1
+#define global HTCAPTION            2
+
+// リージョン作成用の定数
+#define global WINDING              2
+
+#uselib "gdi32.dll"
+//#cfunc CreateDC "CreateDCA" sptr,sptr,sptr,int
+//#func DeleteDC "DeleteDC"  int
+//#func BitBlt "BitBlt" int,int,int,int,int,int,int,int,int
+
+
+#ifndef SetProcessDPIAware
+#uselib "user32"
+#func SetProcessDPIAware "SetProcessDPIAware"
+#endif
+
+#uselib "shcore"
+#func SetProcessDpiAwareness "SetProcessDpiAwareness" int
+#func GetScaleFactorForMonitor "GetScaleFactorForMonitor" int, int
+
+#const PROCESS_PER_MONITOR_DPI_AWARE 2
+#const DISPLAY_DEVICE_PRIMARY_DEVICE 4
+#const DISPLAY_DEVICE_ACTIVE 1
+#const ENUM_CURRENT_SETTINGS -1
+#const MONITOR_DEFAULTTONULL 0
+#const LOGPIXELSX 88
+#const LOGPIXELSY 90
+#const HALFTONE 4
+#const TA_LEFT 0
+#const TA_RIGHT 2
+#const TA_CENTER 6
+
+
+    if varptr(SetProcessDpiAwareness) {
+        SetProcessDpiAwareness PROCESS_PER_MONITOR_DPI_AWARE
+    } else : if varptr(SetProcessDPIAware) {
+        SetProcessDPIAware
+    }
+
+
+#module
+
+// CreateWindowRgn p1(targetWin), p2(baseWin)
+// targetWin : 不定形リージョンを適用するウィンドウID
+// baseWin   : 不定形リージョンを作成する絵があるウィンドウID
+#deffunc CreateWindowRgn int targetWin, int baseWin,int tr,int tg,int tb
+
+gsel baseWin
+
+mref vram, 66        // 画像データを取得
+dim pt, 100000        // 点データ用配列
+dim ct, 100000        // 多角形点数記憶用配列
+
+wx = ginfo_winx : wy = ginfo_winy    // 画像サイズ取得
+
+// 透明色の取得（点（０，０）の色を透明色にする）
+//tr = ginfo_r : tg = ginfo_g : tb = ginfo_b
+
+// 変数初期化
+// 注：yはデータ構造上、下から
+x = 0 : y = wy : flg = 0 : count = 0 : pt_cnt = 0 : poly_cnt = 0
+repeat wy
+    repeat wx
+        // 画像データの構造にそってRGB値を取得
+        b = peek(vram,count)
+        count++
+        g = peek(vram,count)
+        count++
+        r = peek(vram,count)
+        count++
+
+        // 透明色と比較
+        // 内部は説明面倒なので省略。やってることはIIと変わらない。
+        if (wx == x + 1) | ((r == tr) && (g == tg) && (b == tb)) {
+            if flg == 1 {
+                pt(pt_cnt) = x, y-1, x, y
+                pt_cnt += 4
+                ct(poly_cnt) = 4
+                poly_cnt++ : flg = 0
+            }
+        } else {
+            if flg == 0 {
+                pt(pt_cnt) = x, y, x, y-1
+                pt_cnt += 4
+                flg = 1
+            }
+        }
+        x++
+    loop
+    x = 0
+    y--
+loop
+
+
+
+// 取得した情報からリージョン作成（詳細はMSDNやその他サイト参照）
+CreatePolyPolygonRgn varptr(pt), varptr(ct), poly_cnt, WINDING
+tmpRgn = stat
+
+gsel targetWin            // ターゲットウィンドウをアクティブに
+SetWindowRgn hwnd, tmpRgn, 1    // リージョン設定
+DeleteObject tmpRgn        // 後片付け
+
+return
+
+#global
+
+
+	//キャプチャの設定
+	; デスクトップ画面のデバイスコンテキスト取得
+	hdcScreen = CreateDC("DISPLAY", NULL, NULL, NULL)
+	
+	; デスクトップ画面のサイズでバッファ画面を作成
+	sx = ginfo_dispx : sy = ginfo_dispy
+
+
+goto*________________________________end_this_source1
+
+//ウィンドウドラッグで移動
+*idou
+	gsel 0
+	if wparam == 1 {
+		sendmsg hwnd,WM_NCLBUTTONDOWN,HTCAPTION,0
+	}
+	return
+
+//スライドバーのやつ
+*vscroll
+;	lparamにウィンドウハンドルが返る
+	if lparam = hTrackbar {
+;		現在の位置取得 (TBM_GETPOS)
+;		statに位置が返ります。
+		sendmsg hTrackbar, $400
+		sliderstat=int(expf(0.09903487552536128045*stat)*100000.0)
+		//10万～21億
+	}
+	//statをすぐ使う
+	return
+
+//キャプチャのやつ
+*endlabel
+	; デバイスコンテキスト削除
+	DeleteDC hdcScreen
+	end
+
+*________________________________end_this_source1
