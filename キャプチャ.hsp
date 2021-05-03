@@ -282,10 +282,13 @@ stop
 *savetext
 	getkey key,27
 	if key{
-		bsave "テキスト出力.txt",outtxt_bk,strlen(outtxt_bk)
-		; デバイスコンテキスト削除
-		DeleteDC hdcScreen
-		end
+		dialog "終了しますか？",2
+		if stat==6{
+			bsave "テキスト出力.txt",outtxt_bk,strlen(outtxt_bk)
+			; デバイスコンテキスト削除
+			DeleteDC hdcScreen
+			end
+		}
 	}
 	return
 
