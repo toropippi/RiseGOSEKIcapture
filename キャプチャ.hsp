@@ -60,14 +60,14 @@ stop
 	return
 
 *skillchk
-	dim out,204*2
-	dim out0,204
-	dim out1,204
+	dim out,SKLNUM2*2*2
+	dim out0,SKLNUM2*2
+	dim out1,SKLNUM2*2
 	
 	Match100 sliderstat,out
 	
-	memcpy out0,out,204*4,0,0
-	memcpy out1,out,204*4,0,204*4
+	memcpy out0,out,SKLNUM2*2*4,0,0
+	memcpy out1,out,SKLNUM2*2*4,0,SKLNUM2*2*4
 
 	//スキル順位表更新
 	last_sklstr1=sklstr1
@@ -76,12 +76,12 @@ stop
 	sklstr2="スキル2 候補\n"
 		repeat 39
 		if out0.cnt>=2000000000:break
-		sklstr1+=""+SKLALLSTR2.(out0.(102+cnt))+""+out0.cnt+"\n"
+		sklstr1+=""+SKLALLSTR2.(out0.(SKLNUM2+cnt))+""+out0.cnt+"\n"
 		loop
 	
 		repeat 39
 		if out1.cnt>=2000000000:break
-		sklstr2+=""+SKLALLSTR2.(out1.(102+cnt))+""+out1.cnt+"\n"
+		sklstr2+=""+SKLALLSTR2.(out1.(SKLNUM2+cnt))+""+out1.cnt+"\n"
 		loop
 
 	//stime=gettime(7)+gettime(6)*1000-stime
@@ -214,14 +214,14 @@ stop
 		repeat sklLV.0:lvstr+="●":loop
 		
 		pos 210,90:color 85,55,0
-		mes ""+SKLALLSTR.(out0.102)+" "+lvstr+""
+		mes ""+SKLALLSTR.(out0.SKLNUM2)+" "+lvstr+""
 		
 		
 		if out1.0<2000000000{
 			lvstr=""
 			repeat sklLV.1:lvstr+="●":loop
 			pos 210,120:color 0,70,50
-			mes ""+SKLALLSTR.(out1.102)+" "+lvstr+""
+			mes ""+SKLALLSTR.(out1.SKLNUM2)+" "+lvstr+""
 		}
 	}
 	
@@ -251,12 +251,12 @@ stop
 *txtedit
 	last_out1line=out1line
 	out1line=""
-	out1line+=""+SKLALLSTR.(out0.102)+"\t"+sklLV.0+"\t"
-	out1line+=""+SKLALLSTR.(out1.102)+"\t"+sklLV.1+"\t"
+	out1line+=""+SKLALLSTR.(out0.SKLNUM2)+"\t"+sklLV.0+"\t"
+	out1line+=""+SKLALLSTR.(out1.SKLNUM2)+"\t"+sklLV.1+"\t"
 	out1line+=""+slotout.0+"\t"+slotout.1+"\t"+slotout.2+"\t"
 	out1line+=""+(ratesc.7+1)+"\n"
 	if last_out1line!=out1line{
-		if out0.102<100{
+		if out0.SKLNUM2<SKLNUM{
 			if out0.0<2000000000{
 				if sklLV.0>=1{
 					outtxt+=out1line
