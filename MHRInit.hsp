@@ -81,6 +81,10 @@ goto*________________________________end_this_source2
 	sklstr2=""
 	last_out1line=""
 	out1line=""
+
+	//101*101*64*64
+	//重複管理 スキル1,スキル2,スキル2Lv*8+スキル1Lv,スロットC*16+スロットB*4+スロットA,
+	sdim gosekidup,(SKLNUM+1)*(SKLNUM+1)*8*8*4*4*4/8//1bitでありなしを判定
 	onexit goto *endlabel//終了ボタン押したとき
 	return
 
@@ -121,10 +125,20 @@ goto*________________________________end_this_source2
 //表示screen
 *Screen2Init
 	screen 2,440+520,760,0,400,20
+
+	//ボタン
 	pos 400,0
 	objsize 40,40
 	button gosub "←",*ONorOFF
 	buttonstatid=stat
+
+	//チェックボックス
+	pos 310,0
+	objsize 90,28
+	dupchkf=1
+	chkbox "重複を数える",dupchkf
+
+	
 	//http://lhsp.s206.xrea.com/hsp_object7.html
 	;	トラックバー設置 (デフォルト範囲は0～100)
 	;	ウィンドウスタイルに目盛り自動表示 ($1=TBS_AUTOTICKS)
@@ -145,6 +159,7 @@ goto*________________________________end_this_source2
 
 	pos 440,0
 	sdim outtxt,524288
+	sdim outtxt_bk,524288
 	//outtxt+="スキル1	LV	スキル2	LV	スロA	スロB	スロC	RARE\n"
 	mesbox outtxt,520-4,756,5
 	msbxmainid=stat

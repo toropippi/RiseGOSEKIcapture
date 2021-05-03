@@ -21,6 +21,7 @@ goseki_count=0
 	gosub*gsel2view//スキル認識テキスト表示、カットオフ値描画
 	gosub*txtedit//スキル内容出力
 	//gosub*DEBUG0
+	gosub*savetext//Escキーでテキスト出力終了
 	loop
 
 stop
@@ -48,14 +49,7 @@ stop
 		gcopy 3,p1,p2,p3,p4
 		loop
 
-	//gsel 4
-	//mref mrefv4,66
-	//gsel 5
-	//mref mrefv5,66
 	SetCapBuf01 mrefv4,mrefv5
-
-	//gsel 8
-	//mref mrefv8,66
 	SetCapBuf4 mrefv8
 	return
 
@@ -207,7 +201,7 @@ stop
 	mes slotvwstr
 
 	//スキルテキスト表示 ー スキルレベル表示
-	font "メイリオ",18,1
+	//font "メイリオ",18,1
 	if out0.0<2000000000{
 		//スキル1
 		lvstr=""
@@ -249,7 +243,6 @@ stop
 	return
 
 *txtedit
-	last_out1line=out1line
 	out1line=""
 	out1line+=""+SKLALLSTR.(out0.SKLNUM2)+"\t"+sklLV.0+"\t"
 	out1line+=""+SKLALLSTR.(out1.SKLNUM2)+"\t"+sklLV.1+"\t"
@@ -259,11 +252,18 @@ stop
 		if out0.SKLNUM2<SKLNUM{
 			if out0.0<2000000000{
 				if sklLV.0>=1{
-					outtxt+=out1line
-					goseki_count++
-					if ONorOFFswitch==0{//更新
-						gsel 2
-						objprm msbxmainid,outtxt
+					if (slotout.0>=0)&(slotout.1>=0)&(slotout.2>=0){
+						gosub*dupcheck
+						last_out1line=out1line//追加しなくても認識はしていた
+						if dupcheckflag==0{//追加していいなら
+							outtxt+=out1line
+							outtxt_bk+=out1line
+							goseki_count++
+							if ONorOFFswitch==0{//更新
+								gsel 2
+								objprm msbxmainid,outtxt
+							}
+						}
 					}
 				}
 			}
@@ -279,6 +279,40 @@ stop
 	}
 	return
 
+*savetext
+	getkey key,27
+	if key{
+		bsave "テキスト出力.txt",outtxt_bk,strlen(outtxt_bk)
+		; デバイスコンテキスト削除
+		DeleteDC hdcScreen
+		end
+	}
+	return
+
+
+//護石重複チェック
+*dupcheck
+	dupcheckflag=0//0はまだない＝追加して良い、1はある＝追加してはいけない、ということ
+
+	dup_slot=limit(slotout.0,0,3)+limit(slotout.1,0,3)*4+limit(slotout.2,0,3)*16
+	dup_skl1=out0.SKLNUM2
+	dup_skl2=limit(out1.SKLNUM2,0,SKLNUM)
+	dup_sklLV1=limit(sklLV.0,0,7)
+	dup_sklLV2=limit(sklLV.1,0,7)
+	if dup_skl2==SKLNUM:dup_sklLV2=0
+	dup_idx=(dup_skl2*(SKLNUM+1)+dup_skl1)*4096
+	dup_idx+=(dup_sklLV2*8+dup_sklLV1)*64
+	dup_idx+=dup_slot
+
+	bit8=peek(gosekidup,dup_idx/8)
+	if (bit8&(1<<(dup_idx\8)))!=0{
+		if dupchkf==0:dupcheckflag=1//重複を数えないとき
+	}else{
+		//重複変数に追加
+		bit8|=(1<<(dup_idx\8))
+		poke gosekidup,dup_idx/8,bit8
+	}
+	return
 
 #module
 #defcfunc HtoRate int rateh_
