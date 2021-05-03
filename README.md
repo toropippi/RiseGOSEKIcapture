@@ -49,7 +49,7 @@
  ![juhuku](https://user-images.githubusercontent.com/44022497/116908342-bc00f180-ac7d-11eb-8df5-df91b7788260.png)  
  これは正しく表示されているときですが、「重複を数える」というチェックボックスが正しく表示されない場合があります。  
  その場合ディスプレイの表示スケールの設定を100%に変更して下さい。  
- ![kakusyuku](https://user-images.githubusercontent.com/44022497/116908436-ddfa7400-ac7d-11eb-8a3b-601a162182af.jpg)
+ ![kakusyuku](https://user-images.githubusercontent.com/44022497/116908436-ddfa7400-ac7d-11eb-8a3b-601a162182af.jpg)  
  これが150%とか200%だと微妙にUIが崩れてしまうことはありますが、ソフトの機能自体に不具合が起こることはありません。  
   
 ## スキル文字認識の原理
