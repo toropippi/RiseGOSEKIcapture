@@ -1,0 +1,100 @@
+goto*_________________________last3
+
+#module
+//http://hsp.tv/play/pforum.php?mode=pastwch&num=2653
+// 360“x ŽüŠú‚ð 192“x‚É‚·‚é
+#define _PI 96.0
+#define _2PI 192.0
+
+
+#defcfunc max int p1, int p2
+	if p1 < p2 : return p2
+	return p1
+
+#defcfunc min int p1, int p2
+	if p1 < p2 : return p1
+	return p2
+
+#deffunc toHSV var H, var S, var V, int R, int G, int B
+
+	V = max(max(R, G), B)
+	u = min(min(R, G), B)
+
+	if V {
+		S = 255.0 * (V - u) / V
+	} else {
+		S = 0.0
+	}
+	if (V == u){
+		S=0
+		H=0
+		return
+	}
+
+	if V == R {
+		H = _PI / 3 * (G - B) / (V - u); _PI/3 = 32
+	}
+	else : if V == G {
+		H = _PI / 3 * (2.0 + double(B - R) / (V - u))
+	}
+	else {
+		H = _PI / 3 * (4.0 + double(R - G) / (V - u) )
+	}
+	if H < 0.0 : H + _2PI
+
+	H=int(H)
+	S=int(S)
+	return
+
+#defcfunc HtoRate int rateh_
+	//rate2 32,166,254
+	//rate3 179,201,222
+	//rate4 56 211 238
+	//rate5 107,244,246
+	//rate6 125 222 240
+	//rate7 190 197-255 146-234
+	rateh=rateh_
+	if rateh<20:rateh+=192
+	if abs(rateh-190)<6:return 7
+	if abs(rateh-179)<6:return 3
+	if abs(rateh-125)<9:return 6
+	if abs(rateh-107)<9:return 5
+	if abs(rateh-56)<9:return 4
+	if abs(rateh-32)<9:return 2
+	return -1
+
+#defcfunc RateToStr int rate_
+	switch rate_
+	case 2
+		hsvcolor 32,166,254
+		return "RARE2"
+		swbreak
+	case 3
+		hsvcolor 179,201,222
+		return "RARE3"
+		swbreak
+	case 4
+		hsvcolor 56,211,238
+		return "RARE4"
+		swbreak
+	case 5
+		hsvcolor 107,244,246
+		return "RARE5"
+		swbreak
+	case 6
+		hsvcolor 125,222,240
+		return "RARE6"
+		swbreak
+	case 7
+		hsvcolor 190,255,234
+		return "RARE7"
+		swbreak
+	default
+		swbreak
+	swend
+
+	color 0,0,0
+	return "RARE?"
+	
+#global
+*_________________________last3
