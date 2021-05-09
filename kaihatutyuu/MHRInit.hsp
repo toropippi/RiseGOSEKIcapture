@@ -1,7 +1,3 @@
-gosub*ValArraySetting
-gosub*ScreenSetting
-gosub*Fileload
-gosub*Fileload2
 goto*________________________last2
 
 
@@ -102,9 +98,11 @@ goto*________________________last2
 //スキル画像100をロードしてプラグインのほうに受け渡し
 *Fileload
 		repeat SKLNUM
-		buffer 10:picload "skill\\"+cnt+".png"
-		mref mrefv,66
-		//___Set100TpBuf cnt,mrefv
+		buffer 10,192,24
+		pos 0,0
+		picload "skill\\"+cnt+".png",1
+		ccnt=cnt
+		gosub*Set100TpBuf
 		loop
 	return
 
@@ -115,8 +113,7 @@ goto*________________________last2
 		buffer 10:picload "slot\\"+cnt+".png"
 		xx=ginfo(12)
 		yy=ginfo(13)
-		mref mrefv,66
-		//___SetUserTpBuf cnt,xx,yy,mrefv
+		gosub*SetUserTpBuf
 		loop
 	return
 

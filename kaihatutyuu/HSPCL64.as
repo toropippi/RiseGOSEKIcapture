@@ -8,54 +8,87 @@
 #cmd callfunc64i $05
 #cmd callfunc64d $06
 #cmd callfunc64f $07
-#cmd HCLinit $08
-#cmd HCLCreateProgram $09
-#cmd HCLCreateKernel $0A
-#cmd HCLSetKernel $0B
-#cmd HCLCreateBuffer $0C
-#cmd HCLDoKrn1 $0D
-#cmd HCLWriteBuffer $0E
-#cmd HCLReadBuffer $0F
-#cmd HCLSetDevice $10
-#cmd HCLFinish $11
-#cmd HCLGetDeviceInfo $12
-#cmd HCLCopyBuffer $13
-#cmd HCLDoKernel $14
-#cmd HCLReleaseMemObject $15
-#cmd dim_i64 $16
-#cmd HCLSetDev $17
-#cmd HCLCreateProgramWithSource	$18
-#cmd HCLDoKrn1_sub	$19
-#cmd HCLGetDevCount $1A
-#cmd HCLGetSetDevice $1B
-#cmd HCLSetKrns $1C
-#cmd HCLGetSetCommandQueue $1D
-#cmd HCLSetCommandQueue $1E
-#cmd _ExHCLSetCommandQueueMax $1F
-#cmd _ExHCLSetCommandQueueProperties $20
-#cmd HCLFlush $21
-#cmd HCLSetWaitEventList_1 $22
-#cmd HCLSetWaitEventList_a $23
-#cmd _ExHCLResizeEventList $24
-#cmd HCLGetEventStartTime $25
-#cmd HCLGetEventEndTime $26
-//#cmd HCLGetEventStartTime_d $27
-//#cmd HCLGetEventEndTime_d $28
-#cmd HCLGetEventStatus $29
-#cmd HCLWaitForEvent $2A
-#cmd HCLWaitForEvents $2B
-//#cmd HCLWaitForEvent_Sleep $2C
-//#cmd HCLWaitForEvents_Sleep $2D
-#cmd HCLSetWaitEventList_16 $2E
-#cmd HCLGetEventAllCommandInfo $2F
-#cmd Min64 $32
-#cmd Max64 $33
+
+
+#cmd HCLinit $50
+
+#cmd dim_i64 $51
+
+#cmd HCLSetDevice $53
+#cmd HCLGetDeviceCount $54
+#cmd HCLGetDeviceInfo $55
+#cmd HCLGetSettingDevice $56
+
+#cmd HCLCreateProgram $57
+#cmd HCLCreateProgramWithSource	$58
+#cmd HCLReleaseProgram $59
+
+#cmd HCLCreateKernel $5A
+#cmd HCLSetKernel $5B
+#cmd HCLSetKrns $5C
+#cmd HCLGetKernelName_ $79
+#cmd HCLReleaseKernel $5D
+
+#cmd HCLCreateBuffer $5E
+#cmd HCLCreateBufferFrom $5F
+#cmd HCLWriteBuffer $60
+#cmd HCLWriteBuffer_NonBlocking $86
+#cmd HCLReadBuffer $61
+#cmd HCLReadBuffer_NonBlocking $87
+#cmd HCLGet_NonBlocking_Status $88
+#cmd HCLCopyBuffer $62
+#cmd HCLFillBuffer4 $63
+#cmd HCLFillBuffer8 $64
+#cmd HCLReleaseMemObject $65
+
+#cmd HCLReadIndex_i32 $66
+#cmd HCLReadIndex_i64 $67
+#cmd HCLReadIndex_dp $68
+#cmd HCLWriteIndex_i32 $69
+#cmd HCLWriteIndex_i64 $6A
+#cmd HCLWriteIndex_dp $6B
+
+#cmd HCLCall $6C
+#cmd HCLDoKrn1 $6D
+#cmd HCLDoKernel $6E
+#cmd HCLDoKrn1_sub	$6F
+#cmd HCLFinish $70
+#cmd HCLFlush $71
+
+#cmd _ExHCLSetCommandQueueMax $72
+#cmd _ExHCLSetCommandQueueProperties $73
+#cmd HCLSetCommandQueue $74
+#cmd HCLGetSettingCommandQueue $75
+
+#cmd _ExHCLSetEventMax $76
+#cmd HCLSetWaitEvent $77
+#cmd HCLSetWaitEvents $78
+#cmd HCLGetEventLogs $7A
+#cmd HCLGetEventStatus $7B
+#cmd HCLWaitForEvent $7C
+#cmd HCLWaitForEvents $7D
+#cmd HCLCreateUserEvent $89
+#cmd HCLSetUserEventStatus $8A
+
+#cmd Min64 $7F
+#cmd Max64 $80
+
+#cmd DoubleToFloat $81
+#cmd FloatToDouble $82
+
+#cmd _ConvRGBtoBGR 		$83
+#cmd _ConvRGBAtoRGB 		$84
+#cmd _ConvRGBtoRGBA 		$85
 
 
 
-#cmd _ConvRGBtoBGR 		$93
-#cmd _ConvRGBAtoRGB 		$94
-#cmd _ConvRGBtoRGBA 		$95
+
+
+
+
+
+
+
 
 
 
@@ -583,7 +616,7 @@
 	}
 
 #defcfunc HCLGetDeviceInfo_i int a,int index
-	ptrk=0:szs=0
+	ptrk=int64(0):szs=0
 	HCLGetDeviceInfo a,ptrk,szs
 	if szs!=0{
 		dupptr64 out,ptrk,szs,4;4整数型、ptrkは整数ポインタ、szsはサイズ、変数名はここで作成された新しい変数
@@ -593,7 +626,7 @@
 	}
 
 #defcfunc HCLGetDeviceInfo_i64 int a,int index
-	ptrk=0:szs=0
+	ptrk=int64(0):szs=0
 	HCLGetDeviceInfo a,ptrk,szs
 	if szs!=0{
 		dupptr64 out64,ptrk,szs,8;8int64型、ptrkは整数ポインタ、szsはサイズ、変数名はここで作成された新しい変数
@@ -601,6 +634,20 @@
 	}else{
 		return str(int64(0))
 	}
+
+#defcfunc HCLGetKernelName var kernelid
+	ptrk=int64(0):szs=0
+	HCLGetKernelName_ kernelid,ptrk,szs
+	if szs!=0{
+		dupptr64 out,ptrk,szs,2;2文字列型、ptrkは整数ポインタ、szsはサイズ、「out」はここで作成された新しい変数
+		//この時点でoutは、C++側で定義している変数のポインタを参照している→今後内容が変わる可能性
+		sdim retstr,szs
+		retstr=out
+		return retstr
+	}else{
+		return ""
+	}
+
 
 
 

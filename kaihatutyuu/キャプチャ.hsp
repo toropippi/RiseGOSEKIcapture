@@ -4,6 +4,14 @@
 #include "RegionWindow.hsp"
 #include "MHRInit.hsp"
 #include "MHRModule.hsp"
+#include "OpenCL.hsp"
+
+gosub*ValArraySetting
+gosub*ScreenSetting
+gosub*clfirstInit
+gosub*Fileload
+gosub*Fileload2
+gosub*clfirstInit2
 
 goseki_count=0
 	//メインループ
@@ -20,6 +28,7 @@ goseki_count=0
 	gosub*txtedit//スキル内容出力
 	gosub*savetext//Escキーでテキスト出力終了
 	loop
+
 
 stop
 
@@ -46,15 +55,15 @@ stop
 		gcopy 3,p1,p2,p3,p4
 		loop
 
-	//___SetCapBuf01 mrefv4,mrefv5
-	//___SetCapBuf4 mrefv8
+	gosub*SetCapBuf01
+	gosub*SetCapBuf4
 	return
 
 *skillchk
 	dim out,SKLNUM2*2*2
 	dim out0,SKLNUM2*2
 	dim out1,SKLNUM2*2
-	
+	gosub*Match100
 	//___Match100 sliderstat,out
 	
 	memcpy out0,out,SKLNUM2*2*4,0,0
@@ -75,7 +84,6 @@ stop
 		sklstr2+=""+SKLALLSTR2.(out1.(SKLNUM2+cnt))+""+out1.cnt+"\n"
 		loop
 
-	//stime=gettime(7)+gettime(6)*1000-stime
 	return
 
 *slotchk

@@ -1,0 +1,137 @@
+#define SKILLSY 24
+goto*____________last4
+
+*clfirstInit
+	HCLinit
+	HCLSetDevice 1
+	
+	prg=HCLCreateProgram("templatem.cl")//OpenCLのコードが書かれたファイル。コンパイルもここで
+
+	//カーネル
+	krn_Col_to_Gray_load=HCLCreateKernel(prg,"Col_to_Gray_load")//スキルロードに使う
+	krn_Col_to_Gray_skl=HCLCreateKernel(prg,"Col_to_Gray_skl")//毎フレーム変換するほう
+	krn_Col_to_Gray=HCLCreateKernel(prg,"Col_to_Gray")//スロットロードに使う
+	krn_Col_to_Gray_slot=HCLCreateKernel(prg,"Col_to_Gray_slot")//毎フレーム変換するほう
+	krn_Mypos=HCLCreateKernel(prg,"Mypos")//最初の1回求めるやつ
+	krn_Match=HCLCreateKernel(prg,"Match")//
+
+	//メモリ
+	pxsize=24*192*SKLNUM
+	mem_skl_col=HCLCreateBuffer(24*192*3)//スキルロード用
+	mem_col4=HCLCreateBuffer((szlist.0+4)*(szlist.1+4)*3)
+	mem_col5=HCLCreateBuffer((szlist.2+4)*(szlist.3+4)*3)
+	mem_col8=HCLCreateBuffer((szlist.8+4)*(szlist.9+4)*3)
+	dim_i64 mem_colslot,4
+		repeat 4
+		mem_colslot.cnt=HCLCreateBuffer(36*28*3)
+		loop
+		
+	mem_buffer=HCLCreateBuffer(pxsize*4)//スキルロード→buffer
+	mem_gry45=HCLCreateBuffer((szlist.0+4)*(szlist.1+4)*4)//4と5をあわせたやつ
+	mem_gry8=HCLCreateBuffer((szlist.8+4)*(szlist.9+4)*4)
+	dim_i64 mem_gryslot,4
+		repeat 4
+		mem_gryslot.cnt=HCLCreateBuffer(36*28*4)
+		loop
+	
+	whitescore=HCLCreateBuffer(2*4)
+	blackscore=HCLCreateBuffer(2*4)
+	//結果出力用
+	Sum1Result=HCLCreateBuffer(10020*24*21*4)//
+	/*
+	//      スキル1,スキル2 ,Lv1     ,Lv2     ,スロ画像,紙の護石,スロット,装備スキル
+	xylist=34  ,180,34  ,256,271 ,214,271 ,290,229 ,78 ,63  ,6  ,6   ,86 ,121 ,142
+	szlist=220 ,32 ,220 ,32 ,96  ,36 ,96  ,36 ,132 ,44 ,140 ,36 ,128 ,32 ,132 ,30
+*/
+	return
+	
+
+*clfirstInit2
+	//スキル画像の横幅
+	GRPHCSSX=68,188,116,116,140,140,188,140,116,140,92,68,92,92,164,68,164,140,92,92,92,192,92,68,68,44,92,44,68,44,68,116,44,92,92,188,92,44,92,44,20,92,68,44,164,68,140,92,116,68,92,92,92,164,44,164,44,92,92,68,68,68,192,92,116,164,140,116,68,92,68,68,140,164,140,140,140,92,92,164,68,44,92,116,92,92,44,92,44,140,92,68,44,164,68,164,68,92,44,92,68
+	mem_GRPHCSSX=HCLCreateBufferFrom(GRPHCSSX)
+	mem_myposcol=HCLCreateBuffer((10020*24+32)*4)//x座標、y座標、skill_noから色をとってくる
+	mem_mypos=HCLCreateBuffer((10020*24+32)*4)//x座標、y座標、skill_no
+	HCLSetKrns krn_Mypos,mem_myposcol,mem_mypos,mem_GRPHCSSX,mem_buffer
+	HCLDoKrn1 krn_Mypos,(10020*24+32),64
+	//これで、101枚マッチングの際に、global_idから自分の色がO(1)でわかる
+	return
+
+//スキルロード
+*Set100TpBuf
+	mref mrefv,66
+	HCLWriteBuffer mem_skl_col,mrefv,24*192*3,0,0,0
+	HCLSetKernel krn_Col_to_Gray_load,0,mem_skl_col
+	HCLSetKernel krn_Col_to_Gray_load,1,ccnt
+	HCLSetKernel krn_Col_to_Gray_load,2,mem_buffer
+	HCLDoKrn1 krn_Col_to_Gray_load,192*24,64
+	return
+
+//スキル部分の転送
+*SetCapBuf01
+	HCLWriteBuffer mem_col4,mrefv4,,,,0
+	HCLWriteBuffer mem_col5,mrefv5,,,,0
+	HCLFillBuffer4 blackscore,0,0,8
+	HCLFillBuffer4 whitescore,0,0,8
+	
+	HCLSetKrns krn_Col_to_Gray_skl,mem_col4,mem_gry45,blackscore,whitescore,0
+	HCLDoKrn1 krn_Col_to_Gray_skl,224*36,0
+	
+	HCLSetKrns krn_Col_to_Gray_skl,mem_col5,mem_gry45,blackscore,whitescore,1
+	HCLDoKrn1 krn_Col_to_Gray_skl,224*36,0
+	return
+
+
+//スロット4枚ロード
+*SetUserTpBuf
+	mref mrefv,66
+	HCLWriteBuffer mem_colslot.cnt,mrefv,,,,0
+	HCLSetKrns krn_Col_to_Gray,mem_colslot.cnt,mem_gryslot.cnt
+	HCLDoKrn1 krn_Col_to_Gray,36*28,0
+	return
+	
+//スロットの画像転送
+*SetCapBuf4
+	HCLWriteBuffer mem_col8,mrefv8,,,,0
+	HCLSetKrns krn_Col_to_Gray_slot,mem_col8,mem_gry8
+	HCLDoKrn1 krn_Col_to_Gray_slot,136*48,0
+	return
+
+*Match100
+	//毎フレーム更新されるmem_gry45と
+	//mem_bufferを比較
+	HCLSetKrns krn_Match,mem_myposcol,mem_mypos,mem_gry45,Sum1Result
+	HCLDoKrn1 krn_Match,10020*24,32//10020*24
+	return
+
+/*
+	
+	dim host_A,n
+	dim host_B,n
+	dim host_C,n
+		repeat n
+		host_A.cnt=cnt//HSPで初期値を代入
+		host_B.cnt=cnt
+		loop
+	
+	HCLWriteBuffer clmem_A,host_A,n*4,0,0//CPU→GPU
+	HCLWriteBuffer clmem_B,host_B,n*4,0,0//CPU→GPU
+	
+	HCLSetKernel krn,0,clmem_A//OpenCLコードの"vecAdd"に引数を適応
+	HCLSetKernel krn,1,clmem_B//OpenCLコードの"vecAdd"に引数を適応
+	HCLSetKernel krn,2,clmem_C//OpenCLコードの"vecAdd"に引数を適応
+	
+	mes "計算start"
+	HCLDoKrn1 krn,n,n//GPUで計算。HCLDoKrn1は1次元の数で並列数を指定する命令
+	HCLReadBuffer clmem_C,host_C,n*4,0,0//GPU→CPU
+	mes "計算end"
+	
+		repeat n
+		mes ""+host_A.cnt+" + "+host_B.cnt+" = "+host_C.cnt
+		loop
+	stop
+
+*/
+
+
+*____________last4
