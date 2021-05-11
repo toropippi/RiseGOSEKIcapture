@@ -1,0 +1,371 @@
+#include "RegionHighDPI.hsp"
+#include "MHRInit.hsp"
+
+gosub*ValArraySetting
+gosub*ScreenSetting
+gosub*Fileload
+gosub*Fileload2
+goseki_count=0
+	//メインループ
+	repeat -1
+	await 16
+	gosub*capture
+	gosub*splitgrphc//1枚のキャプチャ画像から各領域を切り抜く
+	//stime=gettime(7)+gettime(6)*1000
+	gosub*skillchk//スキル画像マッチ確認、順位表更新
+	//stime=gettime(7)+gettime(6)*1000-stime
+	gosub*slotchk//スロット画像確認
+	gosub*levelchk//スキルのレベルチェック
+	gosub*ratechk//護石のレートチェック
+	gosub*fpsview
+	gosub*gsel2view//スキル認識テキスト表示、カットオフ値描画
+	gosub*txtedit//スキル内容出力
+	//gosub*DEBUG0
+	gosub*savetext//Escキーでテキスト出力終了
+	loop
+
+stop
+
+//スクリーンキャプチャ
+*capture
+	gsel 0
+	g4=ginfo(4):g5=ginfo(5)//くり抜きwindowの位置を確認
+	gsel 3
+	BitBlt hdc, 0, 0, wx,wy, hdcScreen, g4, g5, SRCCOPY | CAPTUREBLT//その領域をキャプチャ
+	return
+
+//1枚のキャプチャ画像から各領域を切り抜く
+*splitgrphc
+		repeat 6
+		if cnt==2:continue
+		if cnt==3:continue
+		if cnt==5:continue
+		gsel 4+cnt
+		pos 0,0
+		p1=xylist.(cnt*2)-bdr
+		p2=xylist.(cnt*2+1)-bdr
+		p3=szlist.(cnt*2)+bdr*2
+		p4=szlist.(cnt*2+1)+bdr*2
+		gcopy 3,p1,p2,p3,p4
+		loop
+
+	SetCapBuf01 mrefv4,mrefv5
+	SetCapBuf4 mrefv8
+	return
+
+*skillchk
+	dim out,SKLNUM2*2*2
+	dim out0,SKLNUM2*2
+	dim out1,SKLNUM2*2
+	
+	Match100 sliderstat,out
+	
+	memcpy out0,out,SKLNUM2*2*4,0,0
+	memcpy out1,out,SKLNUM2*2*4,0,SKLNUM2*2*4
+
+	//スキル順位表更新
+	last_sklstr1=sklstr1
+	last_sklstr2=sklstr2
+	sklstr1="スキル1 候補\n"
+	sklstr2="スキル2 候補\n"
+		repeat 39
+		if out0.cnt>=2000000000:break
+		sklstr1+=""+SKLALLSTR2.(out0.(SKLNUM2+cnt))+""+out0.cnt+"\n"
+		loop
+	
+		repeat 39
+		if out1.cnt>=2000000000:break
+		sklstr2+=""+SKLALLSTR2.(out1.(SKLNUM2+cnt))+""+out1.cnt+"\n"
+		loop
+
+	//stime=gettime(7)+gettime(6)*1000-stime
+	return
+
+*slotchk
+	dim out_a,3
+	dim out_b,3
+	dim out_c,3
+	dim out_d,3
+	dim slotout,3//認識したスロット内容が格納される
+	dim slotoutsc,3//
+		repeat 3
+		slotout.cnt=-1
+		mnsc=200000000
+		MatchManually 0,sliderstat,out_a,0+42*cnt,22+42*cnt
+		MatchManually 1,sliderstat,out_b,0+42*cnt,22+42*cnt
+		MatchManually 2,sliderstat,out_c,0+42*cnt,22+42*cnt
+		MatchManually 3,sliderstat,out_d,0+42*cnt,22+42*cnt
+		if mnsc>out_a:mnsc=out_a:slotout.cnt=0
+		if mnsc>out_b:mnsc=out_b:slotout.cnt=1
+		if mnsc>out_c:mnsc=out_c:slotout.cnt=2
+		if mnsc>out_d:mnsc=out_d:slotout.cnt=3
+		slotoutsc.cnt=mnsc
+		loop
+	
+	return
+
+*levelchk
+	gsel 3
+	dim sklLV,2
+	dim sklLV_debug,2
+		repeat 2
+		flg=0
+		bcnt=0
+		xofst=xylist.(cnt*2)+19
+		yofst=xylist.(cnt*2+1)+56
+			repeat 120
+			pget xofst+cnt*2,yofst
+			if ginfo_b>100{
+				bcnt++
+				flg=0
+			}else{
+				flg++
+				if flg>6:break
+			}
+			loop
+		
+		sklLV.cnt=(bcnt+5)/9
+		sklLV_debug.cnt=bcnt
+		loop
+	//7-16-26
+	return
+
+*ratechk
+	gsel 3
+	xofst=xylist.8+42
+	yofst=xylist.9-8
+	dim ratesc,8//0-6にrate1-7のスコアが、7に一番可能性の高いレートがはいる
+	pgetcnt=0
+		repeat 3
+		yofst-=2
+			repeat 50
+			if pgetcnt>12:break
+			pget xofst+cnt*2,yofst
+			sumcol=ginfo_r+ginfo_g+ginfo_b
+			if sumcol>140{
+				toHSV rateH,_S,_V,ginfo_r,ginfo_g,ginfo_b
+				rateH=HtoRate(rateH)
+				if rateH!=-1{
+					ratesc.(rateH-1)++
+					pgetcnt++
+				}
+			}
+			loop
+		loop
+
+	maxval=0
+	ratesc.7=-1
+		repeat 7
+		if ratesc.cnt>maxval:maxval=ratesc.cnt:ratesc.7=cnt
+		loop
+	return
+	
+*fpsview
+	gsel 2
+	fpscnt++
+	if lastsec!=gettime(6){
+		lastsec=gettime(6)
+		title "fps="+fpscnt+""
+		fpscnt=0
+	}
+	return
+
+*gsel2view
+	gsel 2
+	redraw 0
+	//単色
+	color 211,211,211
+	boxf
+	
+	//50%に縮小して表示
+	pos 0,0
+	gzoom wx/2,wy/2,3,0,0,wx,wy,0
+
+	//rate表示
+	font "メイリオ",24,1
+	pos 210,0
+	mes RateToStr(ratesc.7+1)
+	
+	//スロット内容表示
+	font "メイリオ",22,1
+	color 0,0,0
+	pos 210,30
+	mes "スロット"
+	slotvwstr=""
+		repeat 3
+		if slotout.cnt==0:slotvwstr+="－"
+		if slotout.cnt==1:slotvwstr+="①"
+		if slotout.cnt==2:slotvwstr+="②"
+		if slotout.cnt==3:slotvwstr+="③"
+		loop
+	mes slotvwstr
+
+	//スキルテキスト表示 ー スキルレベル表示
+	//font "メイリオ",18,1
+	if out0.0<2000000000{
+		//スキル1
+		lvstr=""
+		repeat sklLV.0:lvstr+="●":loop
+		
+		pos 210,90:color 85,55,0
+		mes ""+SKLALLSTR.(out0.SKLNUM2)+" "+lvstr+""
+		
+		
+		if out1.0<2000000000{
+			lvstr=""
+			repeat sklLV.1:lvstr+="●":loop
+			pos 210,120:color 0,70,50
+			mes ""+SKLALLSTR.(out1.SKLNUM2)+" "+lvstr+""
+		}
+	}
+	
+	//認識護石数表示
+	pos 393,44
+	font "メイリオ",10,1
+	mes "護石数\n"+goseki_count+""
+
+	//カットオフ表示
+	pos 0,206
+	font "メイリオ",20,1
+	color 0,0,0
+	mes "精度カットオフ値 = "+sliderstat
+
+	//順位表表示
+	color 0,0,0
+	font msgothic,12,0
+	pos 0,280
+	mes sklstr1
+	
+	pos 220,280
+	mes sklstr2
+	
+	redraw 1
+	return
+
+*txtedit
+	out1line=""
+	out1line+=""+SKLALLSTR.(out0.SKLNUM2)+"\t"+sklLV.0+"\t"
+	out1line+=""+SKLALLSTR.(out1.SKLNUM2)+"\t"+sklLV.1+"\t"
+	out1line+=""+slotout.0+"\t"+slotout.1+"\t"+slotout.2+"\t"
+	out1line+=""+(ratesc.7+1)+"\n"
+	if last_out1line!=out1line{
+		if out0.SKLNUM2<SKLNUM{
+			if out0.0<2000000000{
+				if sklLV.0>=1{
+					if (slotout.0>=0)&(slotout.1>=0)&(slotout.2>=0){
+						gosub*dupcheck
+						last_out1line=out1line//追加しなくても認識はしていた
+						if dupcheckflag==0{//追加していいなら
+							outtxt+=out1line
+							outtxt_bk+=out1line
+							goseki_count++
+							if ONorOFFswitch==0{//更新
+								gsel 2
+								objprm msbxmainid,outtxt
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return
+
+
+*DEBUG0
+	getkey key,27
+	if key{
+		wait 600
+	}
+	return
+
+*savetext
+	getkey key,27
+	if key{
+		dialog "終了しますか？",2
+		if stat==6{
+			bsave "テキスト出力.txt",outtxt_bk,strlen(outtxt_bk)
+			; デバイスコンテキスト削除
+			DeleteDC hdcScreen
+			end
+		}
+	}
+	return
+
+
+//護石重複チェック
+*dupcheck
+	dupcheckflag=0//0はまだない＝追加して良い、1はある＝追加してはいけない、ということ
+
+	dup_slot=limit(slotout.0,0,3)+limit(slotout.1,0,3)*4+limit(slotout.2,0,3)*16
+	dup_skl1=out0.SKLNUM2
+	dup_skl2=limit(out1.SKLNUM2,0,SKLNUM)
+	dup_sklLV1=limit(sklLV.0,0,7)
+	dup_sklLV2=limit(sklLV.1,0,7)
+	if dup_skl2==SKLNUM:dup_sklLV2=0
+	dup_idx=(dup_skl2*(SKLNUM+1)+dup_skl1)*4096
+	dup_idx+=(dup_sklLV2*8+dup_sklLV1)*64
+	dup_idx+=dup_slot
+
+	bit8=peek(gosekidup,dup_idx/8)
+	if (bit8&(1<<(dup_idx\8)))!=0{
+		if dupchkf==0:dupcheckflag=1//重複を数えないとき
+	}else{
+		//重複変数に追加
+		bit8|=(1<<(dup_idx\8))
+		poke gosekidup,dup_idx/8,bit8
+	}
+	return
+
+#module
+#defcfunc HtoRate int rateh_
+	//rate2 32,166,254
+	//rate3 179,201,222
+	//rate4 56 211 238
+	//rate5 107,244,246
+	//rate6 125 222 240
+	//rate7 190 197-255 146-234
+	rateh=rateh_
+	if rateh<20:rateh+=192
+	if abs(rateh-190)<6:return 7
+	if abs(rateh-179)<6:return 3
+	if abs(rateh-125)<9:return 6
+	if abs(rateh-107)<9:return 5
+	if abs(rateh-56)<9:return 4
+	if abs(rateh-32)<9:return 2
+	return -1
+
+#defcfunc RateToStr int rate_
+	switch rate_
+	case 2
+		hsvcolor 32,166,254
+		return "RARE2"
+		swbreak
+	case 3
+		hsvcolor 179,201,222
+		return "RARE3"
+		swbreak
+	case 4
+		hsvcolor 56,211,238
+		return "RARE4"
+		swbreak
+	case 5
+		hsvcolor 107,244,246
+		return "RARE5"
+		swbreak
+	case 6
+		hsvcolor 125,222,240
+		return "RARE6"
+		swbreak
+	case 7
+		hsvcolor 190,255,234
+		return "RARE7"
+		swbreak
+	default
+		swbreak
+	swend
+
+	color 0,0,0
+	return "RARE?"
+	
+#global

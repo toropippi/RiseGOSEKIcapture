@@ -3,7 +3,7 @@ goto*____________last4
 
 *clfirstInit
 	HCLinit
-	HCLSetDevice 1
+	HCLSetDevice 0
 	
 	prg=HCLCreateProgram("templatem.cl")//OpenCLのコードが書かれたファイル。コンパイルもここで
 
