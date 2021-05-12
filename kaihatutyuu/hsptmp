@@ -1,137 +1,323 @@
-#define SKILLSY 24
-goto*____________last4
+#include "HSPCL64.as"
+#include "HighDPI.hsp"
+#include "Bitblt.hsp"
+#include "RegionWindow.hsp"
+#include "MHRInit.hsp"
+#include "MHRModule.hsp"
+#include "OpenCL.hsp"
 
-*clfirstInit
-	HCLinit
-	HCLSetDevice 0
-	
-	prg=HCLCreateProgram("templatem.cl")//OpenCLのコードが書かれたファイル。コンパイルもここで
+gosub*ValArraySetting
+gosub*ScreenSetting
+gosub*clfirstInit
+gosub*Fileload
+gosub*Fileload2
+gosub*clfirstInit2
 
-	//カーネル
-	krn_Col_to_Gray_load=HCLCreateKernel(prg,"Col_to_Gray_load")//スキルロードに使う
-	krn_Col_to_Gray_skl=HCLCreateKernel(prg,"Col_to_Gray_skl")//毎フレーム変換するほう
-	krn_Col_to_Gray=HCLCreateKernel(prg,"Col_to_Gray")//スロットロードに使う
-	krn_Col_to_Gray_slot=HCLCreateKernel(prg,"Col_to_Gray_slot")//毎フレーム変換するほう
-	krn_Mypos=HCLCreateKernel(prg,"Mypos")//最初の1回求めるやつ
-	krn_Match=HCLCreateKernel(prg,"Match")//
+goseki_count=0
+	//メインループ
+	repeat -1
+	await 16
+	gosub*capture
+	gosub*splitgrphc//1枚のキャプチャ画像から各領域を切り抜く
+	gosub*skillchk//スキル画像マッチ確認、順位表更新
+	gosub*slotchk//スロット画像確認
+	gosub*levelchk//スキルのレベルチェック
+	gosub*ratechk//護石のレートチェック
+	gosub*fpsview
+	gosub*gsel2view//スキル認識テキスト表示、カットオフ値描画
+	gosub*txtedit//スキル内容出力
+	gosub*savetext//Escキーでテキスト出力終了
+	loop
 
-	//メモリ
-	pxsize=24*192*SKLNUM
-	mem_skl_col=HCLCreateBuffer(24*192*3)//スキルロード用
-	mem_col4=HCLCreateBuffer((szlist.0+4)*(szlist.1+4)*3)
-	mem_col5=HCLCreateBuffer((szlist.2+4)*(szlist.3+4)*3)
-	mem_col8=HCLCreateBuffer((szlist.8+4)*(szlist.9+4)*3)
-	dim_i64 mem_colslot,4
-		repeat 4
-		mem_colslot.cnt=HCLCreateBuffer(36*28*3)
+
+stop
+
+//スクリーンキャプチャ
+*capture
+	gsel 0
+	g4=ginfo(4):g5=ginfo(5)//くり抜きwindowの位置を確認
+	gsel 3
+	BitBlt hdc, 0, 0, wx,wy, hdcScreen, g4, g5, SRCCOPY | CAPTUREBLT//その領域をキャプチャ
+	return
+
+//1枚のキャプチャ画像から各領域を切り抜く
+*splitgrphc
+		repeat 6
+		if cnt==2:continue
+		if cnt==3:continue
+		if cnt==5:continue
+		gsel 4+cnt
+		pos 0,0
+		p1=xylist.(cnt*2)-bdr
+		p2=xylist.(cnt*2+1)-bdr
+		p3=szlist.(cnt*2)+bdr*2
+		p4=szlist.(cnt*2+1)+bdr*2
+		gcopy 3,p1,p2,p3,p4
 		loop
+
+	gosub*SetCapBuf01
+	gosub*SetCapBuf4
+	return
+
+*skillchk
+	dim out,SKLNUM2*2*2
+	dim out0,SKLNUM2*2
+	dim out1,SKLNUM2*2
+	gosub*Match100
+	//___Match100 sliderstat,out
+	
+	memcpy out0,out,SKLNUM2*2*4,0,0
+	memcpy out1,out,SKLNUM2*2*4,0,SKLNUM2*2*4
+
+	//スキル順位表更新
+	last_sklstr1=sklstr1
+	last_sklstr2=sklstr2
+	sklstr1="スキル1 候補\n"
+	sklstr2="スキル2 候補\n"
+		repeat 39
+		if out0.cnt>=2000000000:break
+		sklstr1+=""+SKLALLSTR2.(out0.(SKLNUM2+cnt))+""+out0.cnt+"\n"
+		loop
+	
+		repeat 39
+		if out1.cnt>=2000000000:break
+		sklstr2+=""+SKLALLSTR2.(out1.(SKLNUM2+cnt))+""+out1.cnt+"\n"
+		loop
+
+	return
+
+*slotchk
+	dim out_a,3
+	dim out_b,3
+	dim out_c,3
+	dim out_d,3
+	dim slotout,3//認識したスロット内容が格納される
+	dim slotoutsc,3//
+		repeat 3
+		slotout.cnt=-1
+		mnsc=200000000
+		//___MatchManually 0,sliderstat,out_a,0+42*cnt,22+42*cnt
+		//___MatchManually 1,sliderstat,out_b,0+42*cnt,22+42*cnt
+		//___MatchManually 2,sliderstat,out_c,0+42*cnt,22+42*cnt
+		//___MatchManually 3,sliderstat,out_d,0+42*cnt,22+42*cnt
+		if mnsc>out_a:mnsc=out_a:slotout.cnt=0
+		if mnsc>out_b:mnsc=out_b:slotout.cnt=1
+		if mnsc>out_c:mnsc=out_c:slotout.cnt=2
+		if mnsc>out_d:mnsc=out_d:slotout.cnt=3
+		slotoutsc.cnt=mnsc
+		loop
+	
+	return
+
+*levelchk
+	gsel 3
+	dim sklLV,2
+	dim sklLV_debug,2
+		repeat 2
+		flg=0
+		bcnt=0
+		xofst=xylist.(cnt*2)+19
+		yofst=xylist.(cnt*2+1)+56
+			repeat 120
+			pget xofst+cnt*2,yofst
+			if ginfo_b>100{
+				bcnt++
+				flg=0
+			}else{
+				flg++
+				if flg>6:break
+			}
+			loop
 		
-	mem_buffer=HCLCreateBuffer(pxsize*4)//スキルロード→buffer
-	mem_gry45=HCLCreateBuffer((szlist.0+4)*(szlist.1+4)*4)//4と5をあわせたやつ
-	mem_gry8=HCLCreateBuffer((szlist.8+4)*(szlist.9+4)*4)
-	dim_i64 mem_gryslot,4
-		repeat 4
-		mem_gryslot.cnt=HCLCreateBuffer(36*28*4)
+		sklLV.cnt=(bcnt+5)/9
+		sklLV_debug.cnt=bcnt
 		loop
-	
-	whitescore=HCLCreateBuffer(2*4)
-	blackscore=HCLCreateBuffer(2*4)
-	//結果出力用
-	Sum1Result=HCLCreateBuffer(10020*24*21*4)//
-	/*
-	//      スキル1,スキル2 ,Lv1     ,Lv2     ,スロ画像,紙の護石,スロット,装備スキル
-	xylist=34  ,180,34  ,256,271 ,214,271 ,290,229 ,78 ,63  ,6  ,6   ,86 ,121 ,142
-	szlist=220 ,32 ,220 ,32 ,96  ,36 ,96  ,36 ,132 ,44 ,140 ,36 ,128 ,32 ,132 ,30
-*/
-	return
-	
-
-*clfirstInit2
-	//スキル画像の横幅
-	GRPHCSSX=68,188,116,116,140,140,188,140,116,140,92,68,92,92,164,68,164,140,92,92,92,192,92,68,68,44,92,44,68,44,68,116,44,92,92,188,92,44,92,44,20,92,68,44,164,68,140,92,116,68,92,92,92,164,44,164,44,92,92,68,68,68,192,92,116,164,140,116,68,92,68,68,140,164,140,140,140,92,92,164,68,44,92,116,92,92,44,92,44,140,92,68,44,164,68,164,68,92,44,92,68
-	mem_GRPHCSSX=HCLCreateBufferFrom(GRPHCSSX)
-	mem_myposcol=HCLCreateBuffer((10020*24+32)*4)//x座標、y座標、skill_noから色をとってくる
-	mem_mypos=HCLCreateBuffer((10020*24+32)*4)//x座標、y座標、skill_no
-	HCLSetKrns krn_Mypos,mem_myposcol,mem_mypos,mem_GRPHCSSX,mem_buffer
-	HCLDoKrn1 krn_Mypos,(10020*24+32),64
-	//これで、101枚マッチングの際に、global_idから自分の色がO(1)でわかる
+	//7-16-26
 	return
 
-//スキルロード
-*Set100TpBuf
-	mref mrefv,66
-	HCLWriteBuffer mem_skl_col,mrefv,24*192*3,0,0,0
-	HCLSetKernel krn_Col_to_Gray_load,0,mem_skl_col
-	HCLSetKernel krn_Col_to_Gray_load,1,ccnt
-	HCLSetKernel krn_Col_to_Gray_load,2,mem_buffer
-	HCLDoKrn1 krn_Col_to_Gray_load,192*24,64
-	return
-
-//スキル部分の転送
-*SetCapBuf01
-	HCLWriteBuffer mem_col4,mrefv4,,,,0
-	HCLWriteBuffer mem_col5,mrefv5,,,,0
-	HCLFillBuffer4 blackscore,0,0,8
-	HCLFillBuffer4 whitescore,0,0,8
-	
-	HCLSetKrns krn_Col_to_Gray_skl,mem_col4,mem_gry45,blackscore,whitescore,0
-	HCLDoKrn1 krn_Col_to_Gray_skl,224*36,0
-	
-	HCLSetKrns krn_Col_to_Gray_skl,mem_col5,mem_gry45,blackscore,whitescore,1
-	HCLDoKrn1 krn_Col_to_Gray_skl,224*36,0
-	return
-
-
-//スロット4枚ロード
-*SetUserTpBuf
-	mref mrefv,66
-	HCLWriteBuffer mem_colslot.cnt,mrefv,,,,0
-	HCLSetKrns krn_Col_to_Gray,mem_colslot.cnt,mem_gryslot.cnt
-	HCLDoKrn1 krn_Col_to_Gray,36*28,0
-	return
-	
-//スロットの画像転送
-*SetCapBuf4
-	HCLWriteBuffer mem_col8,mrefv8,,,,0
-	HCLSetKrns krn_Col_to_Gray_slot,mem_col8,mem_gry8
-	HCLDoKrn1 krn_Col_to_Gray_slot,136*48,0
-	return
-
-*Match100
-	//毎フレーム更新されるmem_gry45と
-	//mem_bufferを比較
-	HCLSetKrns krn_Match,mem_myposcol,mem_mypos,mem_gry45,Sum1Result
-	HCLDoKrn1 krn_Match,10020*24,32//10020*24
-	return
-
-/*
-	
-	dim host_A,n
-	dim host_B,n
-	dim host_C,n
-		repeat n
-		host_A.cnt=cnt//HSPで初期値を代入
-		host_B.cnt=cnt
+*ratechk
+	gsel 3
+	xofst=xylist.8+42
+	yofst=xylist.9-8
+	dim ratesc,8//0-6にrate1-7のスコアが、7に一番可能性の高いレートがはいる
+	pgetcnt=0
+		repeat 3
+		yofst-=2
+			repeat 50
+			if pgetcnt>12:break
+			pget xofst+cnt*2,yofst
+			sumcol=ginfo_r+ginfo_g+ginfo_b
+			if sumcol>140{
+				toHSV rateH,_S,_V,ginfo_r,ginfo_g,ginfo_b
+				rateH=HtoRate(rateH)
+				if rateH!=-1{
+					ratesc.(rateH-1)++
+					pgetcnt++
+				}
+			}
+			loop
 		loop
-	
-	HCLWriteBuffer clmem_A,host_A,n*4,0,0//CPU→GPU
-	HCLWriteBuffer clmem_B,host_B,n*4,0,0//CPU→GPU
-	
-	HCLSetKernel krn,0,clmem_A//OpenCLコードの"vecAdd"に引数を適応
-	HCLSetKernel krn,1,clmem_B//OpenCLコードの"vecAdd"に引数を適応
-	HCLSetKernel krn,2,clmem_C//OpenCLコードの"vecAdd"に引数を適応
-	
-	mes "計算start"
-	HCLDoKrn1 krn,n,n//GPUで計算。HCLDoKrn1は1次元の数で並列数を指定する命令
-	HCLReadBuffer clmem_C,host_C,n*4,0,0//GPU→CPU
-	mes "計算end"
-	
-		repeat n
-		mes ""+host_A.cnt+" + "+host_B.cnt+" = "+host_C.cnt
+
+	maxval=0
+	ratesc.7=-1
+		repeat 7
+		if ratesc.cnt>maxval:maxval=ratesc.cnt:ratesc.7=cnt
 		loop
-	stop
+	return
+	
+*fpsview
+	gsel 2
+	fpscnt++
+	if lastsec!=gettime(6){
+		lastsec=gettime(6)
+		title "fps="+fpscnt+""
+		fpscnt=0
+	}
+	return
 
-*/
+*gsel2view
+	gsel 2
+	redraw 0
+	//単色
+	color 211,211,211
+	boxf
+	
+	//50%に縮小して表示
+	pos 0,0
+	gzoom wx/2,wy/2,3,0,0,wx,wy,0
+
+	//rate表示
+	font "メイリオ",24,1
+	pos 210,0
+	mes RateToStr(ratesc.7+1)
+	
+	//スロット内容表示
+	font "メイリオ",22,1
+	color 0,0,0
+	pos 210,30
+	mes "スロット"
+	slotvwstr=""
+		repeat 3
+		if slotout.cnt==0:slotvwstr+="－"
+		if slotout.cnt==1:slotvwstr+="①"
+		if slotout.cnt==2:slotvwstr+="②"
+		if slotout.cnt==3:slotvwstr+="③"
+		loop
+	mes slotvwstr
+
+	//スキルテキスト表示 ー スキルレベル表示
+	//font "メイリオ",18,1
+	if out0.0<2000000000{
+		//スキル1
+		lvstr=""
+		repeat sklLV.0:lvstr+="●":loop
+		
+		pos 210,90:color 85,55,0
+		mes ""+SKLALLSTR.(out0.SKLNUM2)+" "+lvstr+""
+		
+		
+		if out1.0<2000000000{
+			lvstr=""
+			repeat sklLV.1:lvstr+="●":loop
+			pos 210,120:color 0,70,50
+			mes ""+SKLALLSTR.(out1.SKLNUM2)+" "+lvstr+""
+		}
+	}
+	
+	//認識護石数表示
+	pos 393,44
+	font "メイリオ",10,1
+	mes "護石数\n"+goseki_count+""
+
+	//カットオフ表示
+	pos 0,206
+	font "メイリオ",20,1
+	color 0,0,0
+	mes "精度カットオフ値 = "+sliderstat
+
+	//順位表表示
+	color 0,0,0
+	font msgothic,12,0
+	pos 0,280
+	mes sklstr1
+	
+	pos 220,280
+	mes sklstr2
+	
+	redraw 1
+	return
+
+*txtedit
+	out1line=""
+	out1line+=""+SKLALLSTR.(out0.SKLNUM2)+"\t"+sklLV.0+"\t"
+	out1line+=""+SKLALLSTR.(out1.SKLNUM2)+"\t"+sklLV.1+"\t"
+	out1line+=""+slotout.0+"\t"+slotout.1+"\t"+slotout.2+"\t"
+	out1line+=""+(ratesc.7+1)+"\n"
+	if last_out1line!=out1line{
+		if out0.SKLNUM2<SKLNUM{
+			if out0.0<2000000000{
+				if sklLV.0>=1{
+					if (slotout.0>=0)&(slotout.1>=0)&(slotout.2>=0){
+						gosub*dupcheck
+						last_out1line=out1line//追加しなくても認識はしていた
+						if dupcheckflag==0{//追加していいなら
+							outtxt+=out1line
+							outtxt_bk+=out1line
+							goseki_count++
+							if ONorOFFswitch==0{//更新
+								gsel 2
+								objprm msbxmainid,outtxt
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return
 
 
-*____________last4
+*DEBUG0
+	getkey key,27
+	if key{
+		wait 600
+	}
+	return
+
+*savetext
+	getkey key,27
+	if key{
+		dialog "終了しますか？",2
+		if stat==6{
+			bsave "テキスト出力.txt",outtxt_bk,strlen(outtxt_bk)
+			; デバイスコンテキスト削除
+			DeleteDC hdcScreen
+			end
+		}
+	}
+	return
+
+
+//護石重複チェック
+*dupcheck
+	dupcheckflag=0//0はまだない＝追加して良い、1はある＝追加してはいけない、ということ
+
+	dup_slot=limit(slotout.0,0,3)+limit(slotout.1,0,3)*4+limit(slotout.2,0,3)*16
+	dup_skl1=out0.SKLNUM2
+	dup_skl2=limit(out1.SKLNUM2,0,SKLNUM)
+	dup_sklLV1=limit(sklLV.0,0,7)
+	dup_sklLV2=limit(sklLV.1,0,7)
+	if dup_skl2==SKLNUM:dup_sklLV2=0
+	dup_idx=(dup_skl2*(SKLNUM+1)+dup_skl1)*4096
+	dup_idx+=(dup_sklLV2*8+dup_sklLV1)*64
+	dup_idx+=dup_slot
+
+	bit8=peek(gosekidup,dup_idx/8)
+	if (bit8&(1<<(dup_idx\8)))!=0{
+		if dupchkf==0:dupcheckflag=1//重複を数えないとき
+	}else{
+		//重複変数に追加
+		bit8|=(1<<(dup_idx\8))
+		poke gosekidup,dup_idx/8,bit8
+	}
+	return

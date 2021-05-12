@@ -3,7 +3,7 @@ goto*____________last4
 
 *clfirstInit
 	HCLinit
-	HCLSetDevice 0
+	HCLSetDevice 1
 	
 	prg=HCLCreateProgram("templatem.cl")//OpenCLのコードが書かれたファイル。コンパイルもここで
 
@@ -22,7 +22,7 @@ goto*____________last4
 	mem_col5=HCLCreateBuffer((szlist.2+4)*(szlist.3+4)*3)
 	mem_col8=HCLCreateBuffer((szlist.8+4)*(szlist.9+4)*3)
 	dim_i64 mem_colslot,4
-		repeat 4
+		repeat 4//スロットカラー
 		mem_colslot.cnt=HCLCreateBuffer(36*28*3)
 		loop
 		
@@ -30,14 +30,14 @@ goto*____________last4
 	mem_gry45=HCLCreateBuffer((szlist.0+4)*(szlist.1+4)*4)//4と5をあわせたやつ
 	mem_gry8=HCLCreateBuffer((szlist.8+4)*(szlist.9+4)*4)
 	dim_i64 mem_gryslot,4
-		repeat 4
+		repeat 4//スロット白黒
 		mem_gryslot.cnt=HCLCreateBuffer(36*28*4)
 		loop
 	
 	whitescore=HCLCreateBuffer(2*4)
 	blackscore=HCLCreateBuffer(2*4)
-	//結果出力用
-	Sum1Result=HCLCreateBuffer(10020*24*21*4)//
+	//結果出力用。101枚ごとに28*12アレイのスカラーがある
+	Sum1Result=HCLCreateBuffer(101*28*12*2*4)//
 	/*
 	//      スキル1,スキル2 ,Lv1     ,Lv2     ,スロ画像,紙の護石,スロット,装備スキル
 	xylist=34  ,180,34  ,256,271 ,214,271 ,290,229 ,78 ,63  ,6  ,6   ,86 ,121 ,142

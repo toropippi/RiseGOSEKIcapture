@@ -163,7 +163,7 @@ __kernel void Mypos(__global uint* myposcol,__global uint* mypos,__global int* m
 
 
 
-
+/*
 //テンプレートマッチング、埋め込み
 //local_sizeは32固定→あとで64へ
 __kernel void Match(__global int* myposcol,__global uint* mypos,__global int* gray,__global uint* Sum1Result)
@@ -171,14 +171,10 @@ __kernel void Match(__global int* myposcol,__global uint* mypos,__global int* gr
 	int gid = get_global_id(0);
 	if (gid>=10020*24)return;
 	__local int lsum[32];
-	//__local int gray[GRAYX*GRAYY];
 	
 	int lid=get_local_id(0);
 	lsum[lid]=0;
-	/*for(int i=0;i<252;i++)
-	{
-		gray[i*32+lid]=grayg[i*32+lid];
-	}*/
+	
 	barrier(CLK_LOCAL_MEM_FENCE);
 	
 	//自分posの色
@@ -239,11 +235,104 @@ __kernel void Match(__global int* myposcol,__global uint* mypos,__global int* gr
 				for(int k=0;k<32;k++)
 				{
 					//atomic_add(&lsum[(k+lid)%32] ,reg[(k+lid)%32]);//バンクコンフリクト回避
-					atomic_add(&lsum[k] ,reg[k]);//バンクコンフリクト回避
+					atomic_add(&lsum[k] ,reg[k]);
 				}
 				barrier(CLK_LOCAL_MEM_FENCE);
-				//atomic_add(&Sum1Result[sklno*28*12*2+idx/16*16*2+lid] , lsum[lid]);
-				Sum1Result[gid+10020*24*(idx/16-1)]=lsum[lid];
+				atomic_add(&Sum1Result[sklno*28*12*2+idx/16*16*2+lid] , lsum[lid]);
+				
+				lsum[lid]=0;
+				barrier(CLK_LOCAL_MEM_FENCE);
+			}
+			
+		}
+	}
+	
+}
+
+*/
+
+
+//テンプレートマッチング、埋め込み
+//local_sizeは32固定→あとで64へ
+__kernel void Match(__global int* myposcol,__global uint* mypos,__global int* gray,__global uint* Sum1Result)
+{
+	int gid = get_global_id(0);
+	if (gid>=10020*24)return;
+	__local uint lsum[32];
+	
+	int lid=get_local_id(0);
+	lsum[lid]=0;
+	
+	barrier(CLK_LOCAL_MEM_FENCE);
+	
+	//自分posの色
+	uint mycol=myposcol[gid];
+	//自分の座標
+	uint myp=mypos[gid];
+	uint sklno=myp%256;
+	uint x=(myp>>8)%256;
+	uint y=(myp>>16);
+	
+	
+	//ここからx方向28*y方向12を逐次マッチング
+	uint reg[16*2];//合計値保管用のためレジスタ確保
+	int idx=0;
+	for(int i=0;i<12;i++)
+	{
+		for(int jj=0;jj<28;)
+		{
+			uint cc=gray[(x+jj)+(y+i)*GRAYX];
+			uint c0;//スキル1
+			uint c1;//スキル2を同時計算
+			
+			c0=(cc&0x0000ffff);//スキル1
+			c1=(cc>>16);//スキル2を同時計算
+			c0=(c0-mycol)*(c0-mycol);//差の二乗
+			c1=(c1-mycol)*(c1-mycol);//差の二乗
+			reg[(idx%16)*2  ]=c0;
+			reg[(idx%16)*2+1]=c1;
+			idx++;jj++;
+			
+			cc=gray[(x+jj)+(y+i)*GRAYX];
+			c0=(cc&0x0000ffff);//スキル1
+			c1=(cc>>16);//スキル2を同時計算
+			c0=(c0-mycol)*(c0-mycol);//差の二乗
+			c1=(c1-mycol)*(c1-mycol);//差の二乗
+			reg[(idx%16)*2  ]=c0;
+			reg[(idx%16)*2+1]=c1;
+			idx++;jj++;
+			
+			cc=gray[(x+jj)+(y+i)*GRAYX];
+			c0=(cc&0x0000ffff);//スキル1
+			c1=(cc>>16);//スキル2を同時計算
+			c0=(c0-mycol)*(c0-mycol);//差の二乗
+			c1=(c1-mycol)*(c1-mycol);//差の二乗
+			reg[(idx%16)*2  ]=c0;
+			reg[(idx%16)*2+1]=c1;
+			idx++;jj++;
+			
+			cc=gray[(x+jj)+(y+i)*GRAYX];
+			c0=(cc&0x0000ffff);//スキル1
+			c1=(cc>>16);//スキル2を同時計算
+			c0=(c0-mycol)*(c0-mycol);//差の二乗
+			c1=(c1-mycol)*(c1-mycol);//差の二乗
+			reg[(idx%16)*2  ]=c0;
+			reg[(idx%16)*2+1]=c1;
+			idx++;jj++;
+			
+			//レジスタが全部埋まったら
+			if (idx%16==0)//後でアンロールする？
+			{
+				for(int k=0;k<32;k++)
+				{
+					//atomic_add(&lsum[(k+lid)%32] ,reg[(k+lid)%32]);//バンクコンフリクト回避
+					//atomic_add(&lsum[k] ,reg[k]);
+					lsum[(k+lid)%32]+=reg[(k+lid)%32];
+					//barrier(CLK_LOCAL_MEM_FENCE);
+				}
+				atomic_add(&Sum1Result[sklno*28*12*2+idx*2-2+lid] , lsum[lid]);
+				//Sum1Result[sklno*28*12*2+idx/16*16*2+lid]+=lsum[lid];
+				
 				lsum[lid]=0;
 				barrier(CLK_LOCAL_MEM_FENCE);
 			}
