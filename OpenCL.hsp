@@ -3,7 +3,12 @@ goto*____________last4
 
 *clfirstInit
 	HCLinit
-	HCLSetDevice 1
+	
+	sdim GOSEKIcapture2Setting,4096
+	notesel GOSEKIcapture2Setting
+	noteload "GOSEKIcapture2Setting.txt"
+	noteget p1,1
+	HCLSetDevice int(p1)
 	prg=HCLCreateProgram("templatem.cl")//OpenCLのコードが書かれたファイル。コンパイルもここで
 
 	//カーネル
