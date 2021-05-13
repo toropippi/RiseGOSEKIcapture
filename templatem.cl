@@ -64,10 +64,6 @@ __kernel void SlotLoad(__global uchar* col,__global uint* gray)
 
 
 
-
-
-
-
 //colはSKILLSY*192*3byte
 __kernel void SklFrame(__global uchar* col,__global uchar* gray,__global int* blackwhitescore)
 {
@@ -112,6 +108,7 @@ __kernel void SklFrame(__global uchar* col,__global uchar* gray,__global int* bl
 
 
 
+
 //colはx*y*3byte
 __kernel void SlotFrame(__global uchar* col,__global uchar* gray)
 {
@@ -150,10 +147,103 @@ __kernel void SlotFrame(__global uchar* col,__global uchar* gray)
 
 
 
-
 //テンプレートマッチング、埋め込み
 //local_sizeは32固定→あとで64へ
-__kernel void Match2(__global uint* GRPHCSSX4,__global uint* buffer,__global uint* gray,__global uint* Sum1Result,__global uint* mem_STRLENALL,__global uint* GRPHCSSX_sm)
+__kernel void Match2(__global uint* GRPHCSSX4,__global uint* buffer,__global uint* gray,__global uint* Sum1Result,__global uint* mem_STRLENALL,__global uint* GRPHCSSX_sm,int cutoff)
+{
+	uint gid = get_global_id(0);
+	uint sklid=gid/(24*12);
+	uint x=gid%(24*12);//キャプ画像でのoffset
+	uint y=x/24;//キャプ画像でのoffset
+	x%=24;
+	
+	uint lpx=GRPHCSSX4[sklid];
+	
+	uint sc0=0;
+	uint sc1=0;
+	uint ofst=GRPHCSSX_sm[sklid]*6;
+	uint xfg=(x%2)*16;
+	uint mask=65535*(x%2);
+	x/=2;
+	cutoff=cutoff*mem_STRLENALL[sklid]/7;
+	
+	uint g,bf,g0,g1,t0,t1,bf0,ga,gb;
+	for(uint i=0;i<24;i++)
+	{
+		for(uint j=0;j<lpx;j++)//手動ループアンロール
+		{
+			bf=buffer[ofst+i*lpx+j];
+			uint gg=gray[x+1+j*4/2+(i+y)*GRAYX/2];
+			ga=(gray[x+j*4/2+(i+y)*GRAYX/2]>>xfg)+((gg&mask)<<16);
+			gb=(gg>>xfg)+((gray[x+2+j*4/2+(i+y)*GRAYX/2]&mask)<<16);
+			
+			
+			bf0=bf&0x000000ff;
+			g0=ga&0x000000ff;
+			g1=(ga>>8)&0x000000ff;
+			t0=bf0-g0;
+			t1=bf0-g1;
+			sc0+=t0*t0;
+			sc1+=t1*t1;
+			
+			bf0=(bf>>8)&0x000000ff;
+			g0=(ga>>16)&0x000000ff;
+			g1=(ga>>24);
+			t0=bf0-g0;
+			t1=bf0-g1;
+			sc0+=t0*t0;
+			sc1+=t1*t1;
+			
+			
+			
+			
+			bf0=(bf>>16)&0x000000ff;
+			g0=gb&0x000000ff;
+			g1=(gb>>8)&0x000000ff;
+			t0=bf0-g0;
+			t1=bf0-g1;
+			sc0+=t0*t0;
+			sc1+=t1*t1;
+			
+			bf0=bf>>24;
+			g0=(gb>>16)&0x000000ff;
+			g1=(gb>>24);
+			t0=bf0-g0;
+			t1=bf0-g1;
+			sc0+=t0*t0;
+			sc1+=t1*t1;
+		}
+		
+		if ((sc0>cutoff)&(sc1>cutoff))break;
+	}
+	
+	
+	
+	if (sc0>cutoff)
+	{
+		Sum1Result[gid]=2000000000;
+	}
+	else
+	{
+		Sum1Result[gid]=sc0*7/mem_STRLENALL[sklid];//int をオーバーフローしないことを確認済み
+	}
+	
+	if (sc1>cutoff)
+	{
+		Sum1Result[gid+101*24*12]=2000000000;
+	}
+	else
+	{
+		Sum1Result[gid+101*24*12]=sc1*7/mem_STRLENALL[sklid];
+	}
+	
+}
+
+
+
+
+//Match2のoffsetマックス版
+__kernel void Match2max(__global uint* GRPHCSSX4,__global uint* buffer,__global uint* gray,__global uint* Sum1Result,__global uint* mem_STRLENALL,__global uint* GRPHCSSX_sm)
 {
 	uint gid = get_global_id(0);
 	uint sklid=gid/(24*12);
@@ -225,6 +315,14 @@ __kernel void Match2(__global uint* GRPHCSSX4,__global uint* buffer,__global uin
 
 
 
+
+
+
+
+
+
+
+
 //最小値
 //今の所local_size=32で固定
 __kernel void GetMin(__global int* Sum1Result,__global int* Sum2Result)
@@ -269,66 +367,131 @@ __kernel void GetMin(__global int* Sum1Result,__global int* Sum2Result)
 /*
 136 ,48の大きさから
 4枚を3箇所で
-22*20スライド
+16*20スライド
 36*28px
 */
-//global_size=22*20 *3箇所
+//global_size=16*20 *3箇所
 //dslotgryは36*28のuint型
 //gry8は136*48のuchar型
 //テンプレートマッチング、スロットのほう
 __kernel void MatchSlot(__global uint* dslotgry,__global uchar* gry8,__global uint* Sum3Result)
 {
 	uint gid = get_global_id(0);
-	uint kasyo = gid/(22*20);
-	uint x = gid%(22*20);//キャプ画像でのoffset
-	uint y = x/22;//キャプ画像でのoffset
-	x%=22;
+	uint kasyo = gid/(16*20);
+	uint x = gid%(16*20);//キャプ画像でのoffset
+	uint y = x/16;//キャプ画像でのoffset
+	x%=16;
 	
 	uint sc0=0;
 	uint sc1=0;
 	uint sc2=0;
 	uint sc3=0;
-	uint bf0,t0;
-	for(int i=0;i<28;i++)
+	uint bf0,t0,t1,bfa,bfb,bfc,bfd,bfe;
+	for(int i=1;i<27;i++)
 	{
-		for(int j=0;j<36;j++)
+		for(int j=1;j<35;j++)
 		{
-			uint bf=dslotgry[i*36+j];
+			uint bfa=dslotgry[i*36+j];
+			uint bfb=dslotgry[(i-1)*36+j];
+			uint bfc=dslotgry[(i+1)*36+j];
+			uint bfd=dslotgry[i*36+j-1];
+			uint bfe=dslotgry[i*36+j+1];
 			uint g0=gry8[(i+y)*136+j+x+42*kasyo];
-			bf0=bf&0x000000ff;
-			t0=bf0-g0;
-			sc0+=t0*t0;
 			
-			bf0=(bf>>8)&0x000000ff;
+			t1=65536;
+			bf0=bfa&0x000000ff;
 			t0=bf0-g0;
-			sc1+=t0*t0;
+			t1=min(t1,t0*t0);
+			bf0=bfb&0x000000ff;
+			t0=bf0-g0;
+			t1=min(t1,t0*t0);
+			bf0=bfc&0x000000ff;
+			t0=bf0-g0;
+			t1=min(t1,t0*t0);
+			bf0=bfd&0x000000ff;
+			t0=bf0-g0;
+			t1=min(t1,t0*t0);
+			bf0=bfe&0x000000ff;
+			t0=bf0-g0;
+			t1=min(t1,t0*t0);
+			sc0+=t1;
 			
-			bf0=(bf>>16)&0x000000ff;
-			t0=bf0-g0;
-			sc2+=t0*t0;
 			
-			bf0=bf>>24;
+			t1=65536;
+			bf0=(bfa>>8)&0x000000ff;
 			t0=bf0-g0;
-			sc3+=t0*t0;
+			t1=min(t1,t0*t0);
+			bf0=(bfb>>8)&0x000000ff;
+			t0=bf0-g0;
+			t1=min(t1,t0*t0);
+			bf0=(bfc>>8)&0x000000ff;
+			t0=bf0-g0;
+			t1=min(t1,t0*t0);
+			bf0=(bfd>>8)&0x000000ff;
+			t0=bf0-g0;
+			t1=min(t1,t0*t0);
+			bf0=(bfe>>8)&0x000000ff;
+			t0=bf0-g0;
+			t1=min(t1,t0*t0);
+			sc1+=t1;
+			
+			
+			t1=65536;
+			bf0=(bfa>>16)&0x000000ff;
+			t0=bf0-g0;
+			t1=min(t1,t0*t0);
+			bf0=(bfb>>16)&0x000000ff;
+			t0=bf0-g0;
+			t1=min(t1,t0*t0);
+			bf0=(bfc>>16)&0x000000ff;
+			t0=bf0-g0;
+			t1=min(t1,t0*t0);
+			bf0=(bfd>>16)&0x000000ff;
+			t0=bf0-g0;
+			t1=min(t1,t0*t0);
+			bf0=(bfe>>16)&0x000000ff;
+			t0=bf0-g0;
+			t1=min(t1,t0*t0);
+			sc2+=t1;
+			
+			
+			
+			t1=65536;
+			bf0=bfa>>24;
+			t0=bf0-g0;
+			t1=min(t1,t0*t0);
+			bf0=bfb>>24;
+			t0=bf0-g0;
+			t1=min(t1,t0*t0);
+			bf0=bfc>>24;
+			t0=bf0-g0;
+			t1=min(t1,t0*t0);
+			bf0=bfd>>24;
+			t0=bf0-g0;
+			t1=min(t1,t0*t0);
+			bf0=bfe>>24;
+			t0=bf0-g0;
+			t1=min(t1,t0*t0);
+			sc3+=t1;
 		}
 	}
 	
 	
-	Sum3Result[gid+22*20*3*0]=sc0;
-	Sum3Result[gid+22*20*3*1]=sc1;
-	Sum3Result[gid+22*20*3*2]=sc2;
-	Sum3Result[gid+22*20*3*3]=sc3;
+	Sum3Result[gid+16*20*3*0]=sc0;
+	Sum3Result[gid+16*20*3*1]=sc1;
+	Sum3Result[gid+16*20*3*2]=sc2;
+	Sum3Result[gid+16*20*3*3]=sc3;
 }
 
 
 
 /*
 
-22*20スライド
+16*20スライド
 4枚*3箇所
 から4*3のスコアを求めたい
 */
-//32スレッドが22*20をまとめる。つまりglobal_size=32*4*3
+//32スレッドが16*20をまとめる。つまりglobal_size=32*4*3
 __kernel void SlotSum(__global int* Sum3Result,__global int* Sum4Result)
 {
 	int gid = get_global_id(0);
@@ -338,10 +501,10 @@ __kernel void SlotSum(__global int* Sum3Result,__global int* Sum4Result)
 	int lid=gid%32;
 	
 	
-	int reg=Sum3Result[mk*22*20+lid];
-	for(int i=lid+32;i<22*20;i+=32)
+	int reg=Sum3Result[mk*16*20+lid];
+	for(int i=lid+32;i<16*20;i+=32)
 	{
-		reg=min(Sum3Result[mk*22*20+i],reg);
+		reg=min(Sum3Result[mk*16*20+i],reg);
 	}
 	
 	__local int msum[32];

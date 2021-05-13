@@ -1,27 +1,38 @@
-#include "RegionHighDPI.hsp"
+#include "HSPCL64.as"
+#include "HighDPI.hsp"
+#include "Bitblt.hsp"
+#include "RegionWindow.hsp"
 #include "MHRInit.hsp"
+#include "MHRModule.hsp"
+#include "OpenCL.hsp"
 
 gosub*ValArraySetting
 gosub*ScreenSetting
+gosub*clfirstInit
 gosub*Fileload
 gosub*Fileload2
-goseki_count=0
+ModuInit
+
+
 	//メインループ
 	repeat -1
-	await 16
 	gosub*capture
 	gosub*splitgrphc//1枚のキャプチャ画像から各領域を切り抜く
-	//stime=gettime(7)+gettime(6)*1000
-	gosub*skillchk//スキル画像マッチ確認、順位表更新
-	//stime=gettime(7)+gettime(6)*1000-stime
-	gosub*slotchk//スロット画像確認
+
+	gosub*GPUTask
+	
 	gosub*levelchk//スキルのレベルチェック
 	gosub*ratechk//護石のレートチェック
+	
+	gosub*skillchk//スキル画像マッチ結果取得、順位表更新
+	gosub*slotchk//スロット画像マッチ結果取得
 	gosub*fpsview
+
 	gosub*gsel2view//スキル認識テキスト表示、カットオフ値描画
 	gosub*txtedit//スキル内容出力
-	//gosub*DEBUG0
 	gosub*savetext//Escキーでテキスト出力終了
+
+	await 15
 	loop
 
 stop
@@ -36,32 +47,62 @@ stop
 
 //1枚のキャプチャ画像から各領域を切り抜く
 *splitgrphc
-		repeat 6
-		if cnt==2:continue
-		if cnt==3:continue
-		if cnt==5:continue
-		gsel 4+cnt
-		pos 0,0
-		p1=xylist.(cnt*2)-bdr
-		p2=xylist.(cnt*2+1)-bdr
-		p3=szlist.(cnt*2)+bdr*2
-		p4=szlist.(cnt*2+1)+bdr*2
-		gcopy 3,p1,p2,p3,p4
-		loop
+	gsel 4
+	pos 0,0
+	p1=xylist.(0*2)-bdr
+	p2=xylist.(0*2+1)-bdr
+	p3=szlist.(0*2)+bdr*2
+	p4=szlist.(0*2+1)+bdr*2
+	gcopy 3,p1,p2,p3,p4
+	
+	pos 0,szlist.1+bdr*2
+	p1=xylist.(1*2)-bdr
+	p2=xylist.(1*2+1)-bdr
+	p3=szlist.(1*2)+bdr*2
+	p4=szlist.(1*2+1)+bdr*2
+	gcopy 3,p1,p2,p3,p4
 
-	SetCapBuf01 mrefv4,mrefv5
-	SetCapBuf4 mrefv8
+	gsel 8
+	pos 0,0
+	p1=xylist.(4*2)-bdr
+	p2=xylist.(4*2+1)-bdr
+	p3=szlist.(4*2)+bdr*2
+	p4=szlist.(4*2+1)+bdr*2
+	gcopy 3,p1,p2,p3,p4
+	
+	gosub*SklFrame
+	gosub*SlotFrame
+	return
+
+*GPUTask
+	gosub*Match100
+	gosub*MatchSlot44
+	HCLFlush
 	return
 
 *skillchk
-	dim out,SKLNUM2*2*2
-	dim out0,SKLNUM2*2
-	dim out1,SKLNUM2*2
+	HCLReadBuffer Sum2Result,h2res,SKLNUM*2*4
+	memcpy h2res0,h2res,SKLNUM*4,0,0
+	memcpy h2res1,h2res,SKLNUM*4,0,SKLNUM*4
+
+	HCLReadBuffer blackwhitescore,h_bw,16
+	h2res0.SKLNUM=BlackCalc(h_bw.0)
+	h2res1.SKLNUM=BlackCalc(h_bw.1)
+	h2res0.(SKLNUM+1)=WhiteCalc(h_bw.2)
+	h2res1.(SKLNUM+1)=WhiteCalc(h_bw.3)
 	
-	Match100 sliderstat,out
-	
-	memcpy out0,out,SKLNUM2*2*4,0,0
-	memcpy out1,out,SKLNUM2*2*4,0,SKLNUM2*2*4
+	sortval h2res0,0
+	memcpy out0,h2res0,SKLNUM2*4
+		repeat 39
+		sortget out0.(cnt+SKLNUM2),cnt
+		loop
+
+	sortval h2res1,0
+	memcpy out1,h2res1,SKLNUM2*4
+		repeat 39
+		sortget out1.(cnt+SKLNUM2),cnt
+		loop
+
 
 	//スキル順位表更新
 	last_sklstr1=sklstr1
@@ -78,27 +119,21 @@ stop
 		sklstr2+=""+SKLALLSTR2.(out1.(SKLNUM2+cnt))+""+out1.cnt+"\n"
 		loop
 
-	//stime=gettime(7)+gettime(6)*1000-stime
 	return
 
 *slotchk
-	dim out_a,3
-	dim out_b,3
-	dim out_c,3
-	dim out_d,3
-	dim slotout,3//認識したスロット内容が格納される
-	dim slotoutsc,3//
+	HCLReadBuffer Sum4Result,slsc
+
 		repeat 3
 		slotout.cnt=-1
-		mnsc=200000000
-		MatchManually 0,sliderstat,out_a,0+42*cnt,22+42*cnt
-		MatchManually 1,sliderstat,out_b,0+42*cnt,22+42*cnt
-		MatchManually 2,sliderstat,out_c,0+42*cnt,22+42*cnt
-		MatchManually 3,sliderstat,out_d,0+42*cnt,22+42*cnt
-		if mnsc>out_a:mnsc=out_a:slotout.cnt=0
-		if mnsc>out_b:mnsc=out_b:slotout.cnt=1
-		if mnsc>out_c:mnsc=out_c:slotout.cnt=2
-		if mnsc>out_d:mnsc=out_d:slotout.cnt=3
+		mnsc=slidersc/100
+		if mnsc>4000000:mnsc=2000000000
+		
+		ccnt=cnt
+			repeat 4
+			_slsc=slsc.(cnt*3+ccnt)
+			if mnsc>_slsc:mnsc=_slsc:slotout.ccnt=cnt
+			loop
 		slotoutsc.cnt=mnsc
 		loop
 	
@@ -106,8 +141,6 @@ stop
 
 *levelchk
 	gsel 3
-	dim sklLV,2
-	dim sklLV_debug,2
 		repeat 2
 		flg=0
 		bcnt=0
@@ -132,9 +165,12 @@ stop
 
 *ratechk
 	gsel 3
+		repeat 7
+		ratesc.cnt=0
+		loop
+		
 	xofst=xylist.8+42
 	yofst=xylist.9-8
-	dim ratesc,8//0-6にrate1-7のスコアが、7に一番可能性の高いレートがはいる
 	pgetcnt=0
 		repeat 3
 		yofst-=2
@@ -165,17 +201,28 @@ stop
 	fpscnt++
 	if lastsec!=gettime(6){
 		lastsec=gettime(6)
-		title "fps="+fpscnt+""
+		
+			start_time=HCLGetEventLogs(0,6)//6はCL_PROFILING_COMMAND_STARTのtime
+			end_time=HCLGetEventLogs(0,7)//7はCL_PROFILING_COMMAND_ENDのtime
+			calctime=int(end_time-start_time)/1000
+			
+			start_time2=HCLGetEventLogs(1,6)//6はCL_PROFILING_COMMAND_STARTのtime
+			end_time2=HCLGetEventLogs(1,7)//7はCL_PROFILING_COMMAND_ENDのtime
+			calctime2=int(end_time2-start_time2)/1000
+	
+		title "fps="+fpscnt+"  スキル認識"+calctime+"us  スロ認識"+calctime2+"us"
 		fpscnt=0
 	}
 	return
 
 *gsel2view
 	gsel 2
+
 	redraw 0
 	//単色
 	color 211,211,211
-	boxf
+	boxf 190,0,442,164
+	boxf 0,164,442,760
 	
 	//50%に縮小して表示
 	pos 0,0
@@ -201,7 +248,7 @@ stop
 	mes slotvwstr
 
 	//スキルテキスト表示 ー スキルレベル表示
-	//font "メイリオ",18,1
+	font "メイリオ",18,1
 	if out0.0<2000000000{
 		//スキル1
 		lvstr=""
@@ -224,11 +271,37 @@ stop
 	font "メイリオ",10,1
 	mes "護石数\n"+goseki_count+""
 
+	//スライダー描画
+	mkey=key1
+	getkey key1,1
+	gsel 2
+	if (key1!=0)&(mkey==0){
+		if (243<mousey)&(mousey<270){
+			if mousex<440{
+				sflag=1
+			}
+		}
+		//if ginfo(2)!=2:sflag=2
+	}
+	if (key1==0){
+		sflag=0
+	}
+	if sflag==1{
+		sliderint=limit(mousex-7,0,407)
+	}
+	slidersc=int(expf(0.09903487552536128045*sliderint/407.0*100.0)*100000.0)//スライダースコア
+	pos 0,244
+	gcopy 5,0,0,432,30
+	pos sliderint+6,244+3
+	gmode 2,11,19,256
+	gcopy 6+sflag\2,0,0,11,19
+	
 	//カットオフ表示
 	pos 0,206
 	font "メイリオ",20,1
 	color 0,0,0
-	mes "精度カットオフ値 = "+sliderstat
+	mes "精度カットオフ値 = "+slidersc
+	
 
 	//順位表表示
 	color 0,0,0
@@ -238,16 +311,16 @@ stop
 	
 	pos 220,280
 	mes sklstr2
-	
+
 	redraw 1
 	return
 
 *txtedit
 	out1line=""
-	out1line+=""+SKLALLSTR.(out0.SKLNUM2)+"\t"+sklLV.0+"\t"
-	out1line+=""+SKLALLSTR.(out1.SKLNUM2)+"\t"+sklLV.1+"\t"
-	out1line+=""+slotout.0+"\t"+slotout.1+"\t"+slotout.2+"\t"
-	out1line+=""+(ratesc.7+1)+"\n"
+	out1line+=""+SLLLS.(out0.SKLNUM2)+","+sklLV.0+","
+	out1line+=""+SLLLS.(out1.SKLNUM2)+","+sklLV.1+","
+	out1line+=""+slotout.0+","+slotout.1+","+slotout.2+"\n"
+	//out1line+=""+(ratesc.7+1)+"\n"
 	if last_out1line!=out1line{
 		if out0.SKLNUM2<SKLNUM{
 			if out0.0<2000000000{
@@ -296,7 +369,6 @@ stop
 //護石重複チェック
 *dupcheck
 	dupcheckflag=0//0はまだない＝追加して良い、1はある＝追加してはいけない、ということ
-
 	dup_slot=limit(slotout.0,0,3)+limit(slotout.1,0,3)*4+limit(slotout.2,0,3)*16
 	dup_skl1=out0.SKLNUM2
 	dup_skl2=limit(out1.SKLNUM2,0,SKLNUM)
@@ -316,56 +388,3 @@ stop
 		poke gosekidup,dup_idx/8,bit8
 	}
 	return
-
-#module
-#defcfunc HtoRate int rateh_
-	//rate2 32,166,254
-	//rate3 179,201,222
-	//rate4 56 211 238
-	//rate5 107,244,246
-	//rate6 125 222 240
-	//rate7 190 197-255 146-234
-	rateh=rateh_
-	if rateh<20:rateh+=192
-	if abs(rateh-190)<6:return 7
-	if abs(rateh-179)<6:return 3
-	if abs(rateh-125)<9:return 6
-	if abs(rateh-107)<9:return 5
-	if abs(rateh-56)<9:return 4
-	if abs(rateh-32)<9:return 2
-	return -1
-
-#defcfunc RateToStr int rate_
-	switch rate_
-	case 2
-		hsvcolor 32,166,254
-		return "RARE2"
-		swbreak
-	case 3
-		hsvcolor 179,201,222
-		return "RARE3"
-		swbreak
-	case 4
-		hsvcolor 56,211,238
-		return "RARE4"
-		swbreak
-	case 5
-		hsvcolor 107,244,246
-		return "RARE5"
-		swbreak
-	case 6
-		hsvcolor 125,222,240
-		return "RARE6"
-		swbreak
-	case 7
-		hsvcolor 190,255,234
-		return "RARE7"
-		swbreak
-	default
-		swbreak
-	swend
-
-	color 0,0,0
-	return "RARE?"
-	
-#global

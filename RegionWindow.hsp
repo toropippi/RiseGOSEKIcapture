@@ -59,7 +59,7 @@ goto*_____________________last0
 //ウィンドウドラッグで移動
 *idou
 	gsel 0
-	if wparam == 1 {
+	if (wparam == 1)&(sflag==0) {
 		sendmsg hwnd,WM_NCLBUTTONDOWN,HTCAPTION,0
 	}
 	return

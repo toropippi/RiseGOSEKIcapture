@@ -12,6 +12,7 @@ goto*____________last4
 	krn_SklFrame=HCLCreateKernel(prg,"SklFrame")//毎フレーム変換するほう
 	krn_SlotFrame=HCLCreateKernel(prg,"SlotFrame")//毎フレーム変換するほう
 	krn_Match2=HCLCreateKernel(prg,"Match2")
+	krn_Match2max=HCLCreateKernel(prg,"Match2max")
 	krn_GetMin=HCLCreateKernel(prg,"GetMin")
 	krn_MatchSlot=HCLCreateKernel(prg,"MatchSlot")
 	krn_SlotSum=HCLCreateKernel(prg,"SlotSum")
@@ -43,13 +44,14 @@ goto*____________last4
 	Sum1Result=HCLCreateBuffer(101*24*12*2*4)//
 	Sum2Result=HCLCreateBuffer(101*2*4)//24*12の中の最小値をいれる。
 	//結果出力用。スロットの法
-	Sum3Result=HCLCreateBuffer(22*20*4*3*4)//22*20スライドで4枚4箇所*uint型
+	Sum3Result=HCLCreateBuffer(16*20*4*3*4)//16*20スライドで4枚4箇所*uint型
 	Sum4Result=HCLCreateBuffer(4*3*4)//4枚4箇所*uint型
 	
 	//カーネルセット
 	HCLSetKrns krn_SklFrame,mem_col45,mem_gry45,blackwhitescore
 	HCLSetKrns krn_SlotFrame,mem_col8,mem_gry8
 	HCLSetKrns krn_Match2,mem_GRPHCSSX4,mem_buffer,mem_gry45,Sum1Result,mem_STRLENALL,mem_GRPHCSSX_sm
+	HCLSetKrns krn_Match2max,mem_GRPHCSSX4,mem_buffer,mem_gry45,Sum1Result,mem_STRLENALL,mem_GRPHCSSX_sm
 	HCLSetKrns krn_GetMin,Sum1Result,Sum2Result
 	HCLSetKrns krn_MatchSlot,mem_dslot_gry,mem_gry8,Sum3Result
 	HCLSetKrns krn_SlotSum,Sum3Result,Sum4Result
@@ -98,12 +100,17 @@ goto*____________last4
 	return
 
 *Match100
-	HCLDoKrn1 krn_Match2,24*12*101,32,0
+	if slidersc<1999999999{
+		HCLSetKernel krn_Match2,6,slidersc
+		HCLDoKrn1 krn_Match2,24*12*101,32,0
+	}else{
+		HCLDoKrn1 krn_Match2max,24*12*101,32,0
+	}
 	HCLDoKrn1 krn_GetMin,101*2*32,32
 	return
 	
 *MatchSlot44
-	HCLDoKrn1 krn_MatchSlot,22*20*3,32,1
+	HCLDoKrn1 krn_MatchSlot,16*20*3,32,1
 	HCLDoKrn1 krn_SlotSum,32*4*3,32
 	return
 
