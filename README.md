@@ -85,9 +85,9 @@
  コマンドライン引数に画像ファイル名を指定することで、スキル認識を行い結果をテキストで出力します。  
 ## 対応形式
  画像ファイルは  
- ・png
- ・jpg
- ・bmp
+ ・png  
+ ・jpg  
+ ・bmp  
  形式をサポートしています。  
  解像度は1920x1080や1280x720の16:9画像が対応しています。  
 ## 実行
@@ -95,11 +95,11 @@
  ![readme0](https://user-images.githubusercontent.com/44022497/118168339-b5832e80-b462-11eb-98bc-c99341365509.png)  
 ## 結果出力
  結果出力は下記のようになります。  
- ![readme2](https://user-images.githubusercontent.com/44022497/118168392-c5027780-b462-11eb-8c7d-96afbd2ecd99.png)  
+ ![readme1](https://user-images.githubusercontent.com/44022497/118168390-c469e100-b462-11eb-90ea-1b06ffe8b265.png)  
  実行ファイルと同じ階層に出力されます。  
 ## デバッグ出力
  ↓これはデバッグ機能みたいなものです。  
- ![readme1](https://user-images.githubusercontent.com/44022497/118168390-c469e100-b462-11eb-90ea-1b06ffe8b265.png)  
+ ![readme2](https://user-images.githubusercontent.com/44022497/118168392-c5027780-b462-11eb-8c7d-96afbd2ecd99.png)  
  実際にキャプチャされた部分が切り出されて出力されます。  
  またソフト内で引数がどのような文字列で処理されたかも見ることができます。  
  
