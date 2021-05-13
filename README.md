@@ -4,8 +4,8 @@
  #モンハンライズ #MHR #MHRise #護石 #護石認識 #文字認識 #画像認識 #自動化 #手動 #テキスト化 #OpenCL
 ## 使い方
 　
-### GOSEKIcapture.exeの起動
-　GOSEKIcapture.exeを起動します。  
+### GOSEKIcapture2.exeの起動
+　GOSEKIcapture2.exeを起動します。  
  <img width="711" alt="0" src="https://user-images.githubusercontent.com/44022497/116805810-ce870800-ab63-11eb-84f9-0acf59be8de2.png">  
  すると白いウィンドウの他に緑色の枠がでます。これもウィンドウなのでマウスドラッグで移動できます。  
  ![mouse](https://user-images.githubusercontent.com/44022497/116805822-e65e8c00-ab63-11eb-8465-e4d488d7f9c8.png)  
@@ -59,7 +59,15 @@
 ### OpenCLデバイスがない
  GOSEKIcapture ver2からOpenMPではなくOpenCLを使って計算をしています。  
  お使いのPCが古い場合「HSPCL64.dllがありません」といったようなエラーが出ると思います。  
- ~~ごみおまの前にそのごみPCを捨てましょう~~
+ ~~ごみおまの前にそのごみPCを捨てましょう~~  
+ ver1を別フォルダに残しているのでそちらを起動してみて下さい。  
+
+### 計算に使うGPU,CPUを手動で指定したい
+ HCLGetDeviceInfo.exeを起動するとOpenCLデバイスが列挙されます。  
+ <img alt="7" src="https://user-images.githubusercontent.com/44022497/118158359-a0a09e00-b456-11eb-9e47-34c5f08bf0aa.jpg">  
+ 使いたいGPU,CPUのデバイスidをGOSEKIcapture2Setting.txtの2行目に記載することで、任意のデバイスで計算を行うことができます。  
+ GOSEKIcapture2.exeを起動すると、計算時間がタイトルバーに表示されます。単位はマイクロセカンド(us)です。  
+ OpenCLデバイスがない場合、HCLGetDeviceInfo.exeを起動してもデバイスが列挙されませんので、確認用に使いこともできます。  
 
 ## スキル文字認識の原理
  テンプレートマッチングみたいなことをやってます。  
