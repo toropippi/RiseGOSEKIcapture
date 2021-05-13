@@ -14,6 +14,7 @@ goto*____________last4
 	krn_Col_to_Gray_slot=HCLCreateKernel(prg,"Col_to_Gray_slot")//毎フレーム変換するほう
 	krn_Mypos=HCLCreateKernel(prg,"Mypos")//最初の1回求めるやつ
 	krn_Match=HCLCreateKernel(prg,"Match")//
+	krn_Match2=HCLCreateKernel(prg,"Match2")//
 
 	//メモリ
 	pxsize=24*192*SKLNUM
@@ -37,7 +38,7 @@ goto*____________last4
 	whitescore=HCLCreateBuffer(2*4)
 	blackscore=HCLCreateBuffer(2*4)
 	//結果出力用。101枚ごとに28*12アレイのスカラーがある
-	Sum1Result=HCLCreateBuffer(101*28*12*2*4)//
+	Sum1Result=HCLCreateBuffer(101*24*12*2*4)//
 	/*
 	//      スキル1,スキル2 ,Lv1     ,Lv2     ,スロ画像,紙の護石,スロット,装備スキル
 	xylist=34  ,180,34  ,256,271 ,214,271 ,290,229 ,78 ,63  ,6  ,6   ,86 ,121 ,142
@@ -60,7 +61,7 @@ goto*____________last4
 //スキルロード
 *Set100TpBuf
 	mref mrefv,66
-	HCLWriteBuffer mem_skl_col,mrefv,24*192*3,0,0,0
+	HCLWriteBuffer mem_skl_col,mrefv,24*192*3,0,0,1
 	HCLSetKernel krn_Col_to_Gray_load,0,mem_skl_col
 	HCLSetKernel krn_Col_to_Gray_load,1,ccnt
 	HCLSetKernel krn_Col_to_Gray_load,2,mem_buffer
@@ -85,7 +86,7 @@ goto*____________last4
 //スロット4枚ロード
 *SetUserTpBuf
 	mref mrefv,66
-	HCLWriteBuffer mem_colslot.cnt,mrefv,,,,0
+	HCLWriteBuffer mem_colslot.cnt,mrefv,,,,1
 	HCLSetKrns krn_Col_to_Gray,mem_colslot.cnt,mem_gryslot.cnt
 	HCLDoKrn1 krn_Col_to_Gray,36*28,0
 	return
@@ -100,8 +101,14 @@ goto*____________last4
 *Match100
 	//毎フレーム更新されるmem_gry45と
 	//mem_bufferを比較
-	HCLSetKrns krn_Match,mem_myposcol,mem_mypos,mem_gry45,Sum1Result
-	HCLDoKrn1 krn_Match,10020*24,32//10020*24
+	
+	//HCLFillBuffer4 Sum1Result,0,0,101*28*12*2*4
+	//HCLSetKrns krn_Match,mem_myposcol,mem_mypos,mem_gry45,Sum1Result
+	//HCLDoKrn1 krn_Match,10020*24,32,0//10020*24
+
+	HCLSetKrns krn_Match2,mem_GRPHCSSX,mem_buffer,mem_gry45,Sum1Result
+	HCLDoKrn1 krn_Match2,24*12*101,32,0
+	
 	return
 
 /*

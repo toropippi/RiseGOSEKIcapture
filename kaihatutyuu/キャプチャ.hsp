@@ -16,7 +16,6 @@ gosub*clfirstInit2
 goseki_count=0
 	//メインループ
 	repeat -1
-	await 16
 	gosub*capture
 	gosub*splitgrphc//1枚のキャプチャ画像から各領域を切り抜く
 	gosub*skillchk//スキル画像マッチ確認、順位表更新
@@ -27,8 +26,9 @@ goseki_count=0
 	gosub*gsel2view//スキル認識テキスト表示、カットオフ値描画
 	gosub*txtedit//スキル内容出力
 	gosub*savetext//Escキーでテキスト出力終了
+	
+	await 1
 	loop
-
 
 stop
 
@@ -65,9 +65,69 @@ stop
 	dim out1,SKLNUM2*2
 	gosub*Match100
 	//___Match100 sliderstat,out
+
+
+	dim hres,101*24*12*2
+	dim hres0,101*24*12
+	dim hres1,101*24*12
+	HCLReadBuffer Sum1Result,hres,101*24*12*2*4
+	//Sum1Result=HCLCreateBuffer(101*28*12*2*4)
+		repeat 101*24*12
+		hres0.cnt=hres.(cnt*2)
+		loop
+		
+		repeat 101*24*12
+		hres1.cnt=hres.(cnt*2+1)
+		loop
+		/*
+			screen 121,640,480,0
+			sdim outk,65536
+				repeat 101
+				outk+=""+hres0.cnt+"\t"+hres1.cnt+"\n"
+				loop
+			mesbox outk,640,480,5
+			stop*/
+
+
+
+	dim skl0_minls,101
+	dim skl1_minls,101
+			
 	
-	memcpy out0,out,SKLNUM2*2*4,0,0
-	memcpy out1,out,SKLNUM2*2*4,0,SKLNUM2*2*4
+	dim tmp,24*12
+		repeat 101
+		memcpy tmp,hres0,24*12*4,0,cnt*24*12*4
+		sortval tmp,0
+		skl0_minls.cnt=tmp.gid0
+		loop
+	
+		repeat 101
+		memcpy tmp,hres1,24*12*4,0,cnt*24*12*4
+		sortval tmp,0
+		skl1_minls.cnt=tmp.0
+		loop
+
+
+	dim out0,SKLNUM2*2
+	sortval skl0_minls,0
+	memcpy out0,skl0_minls,101*4
+		repeat 101
+		sortget out0.(cnt+SKLNUM2),cnt
+		loop
+
+	dim out1,SKLNUM2*2
+	sortval skl1_minls,0
+	memcpy out1,skl1_minls,101*4
+		repeat 101
+		sortget out1.(cnt+SKLNUM2),cnt
+		loop
+
+
+
+		
+	
+	//memcpy out0,out,SKLNUM2*2*4,0,0
+	//memcpy out1,out,SKLNUM2*2*4,0,SKLNUM2*2*4
 
 	//スキル順位表更新
 	last_sklstr1=sklstr1
@@ -170,17 +230,23 @@ stop
 	fpscnt++
 	if lastsec!=gettime(6){
 		lastsec=gettime(6)
-		title "fps="+fpscnt+""
+		
+			start_time=HCLGetEventLogs(0,6)//6はCL_PROFILING_COMMAND_STARTのtime
+			end_time=HCLGetEventLogs(0,7)//7はCL_PROFILING_COMMAND_ENDのtime
+			calctime=int(end_time-start_time)
+	
+		title "fps="+fpscnt+" "+calctime+""
 		fpscnt=0
 	}
 	return
 
 *gsel2view
 	gsel 2
-	redraw 0
+
+	redraw 0	
 	//単色
 	color 211,211,211
-	boxf
+	boxf 
 	
 	//50%に縮小して表示
 	pos 0,0
@@ -206,7 +272,7 @@ stop
 	mes slotvwstr
 
 	//スキルテキスト表示 ー スキルレベル表示
-	//font "メイリオ",18,1
+	font "メイリオ",18,1
 	if out0.0<2000000000{
 		//スキル1
 		lvstr=""
@@ -237,14 +303,15 @@ stop
 
 	//順位表表示
 	color 0,0,0
-	font msgothic,12,0
+	font "メイリオ",12,0
 	pos 0,280
 	mes sklstr1
 	
 	pos 220,280
 	mes sklstr2
-	
+
 	redraw 1
+
 	return
 
 *txtedit
