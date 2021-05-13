@@ -63,13 +63,14 @@ __kernel void Col_to_Gray_skl(__global uchar* col,__global uint* gray,__global i
 	}
 	
 	
+	blck_sc = sum * sum / 9;//黒以外のところが結構あるか
+	atomic_add(&blackscore[skl_no] ,blck_sc);
+	
 	
 	sum=sum<<(skl_no*16);
 	sum+= (skl_no==0) ? (gray[gid]&0xffff0000):(gray[gid]&0x0000ffff);
 	gray[gid]=sum;
 	
-	blck_sc = sum * sum / 9;//黒以外のところが結構あるか
-	atomic_add(&blackscore[skl_no] ,blck_sc);
 }
 
 
@@ -165,7 +166,7 @@ __kernel void Mypos(__global uint* myposcol,__global uint* mypos,__global int* m
 
 
 
-
+/*
 
 //テンプレートマッチング、埋め込み
 //local_sizeは32固定→あとで64へ
@@ -259,10 +260,7 @@ __kernel void Match(__global int* myposcol,__global uint* mypos,__global int* gr
 	
 }
 
-
-
-
-
+*/
 
 
 
@@ -272,36 +270,69 @@ __kernel void Match(__global int* myposcol,__global uint* mypos,__global int* gr
 
 //テンプレートマッチング、埋め込み
 //local_sizeは32固定→あとで64へ
-__kernel void Match2(__global int* GRPHCSSX,__global int* buffer,__global int* gray,__global int* Sum1Result)
+__kernel void Match2(__global uint* GRPHCSSX,__global uint* buffer,__global uint* gray,__global uint* Sum1Result,__global uint* mem_STRLENALL)
 {
-	int gid = get_global_id(0);
-	int sklid=gid/(24*12);
-	int x=gid%(24*12);//キャプ画像でのoffset
-	int y=x/24;//キャプ画像でのoffset
+	uint gid = get_global_id(0);
+	uint sklid=gid/(24*12);
+	uint x=gid%(24*12);//キャプ画像でのoffset
+	uint y=x/24;//キャプ画像でのoffset
 	x%=24;
 	
-	int lpx=GRPHCSSX[sklid];
+	uint lpx=GRPHCSSX[sklid];
 	
-	int sc0=0;
-	int sc1=0;
-	for(int i=0;i<24;i++)
+	uint sc0=0;
+	uint sc1=0;
+	for(uint i=0;i<24;i++)
 	{
-		for(int j=0;j<lpx;j++)
+		for(uint j=0;j<lpx;j++)
 		{
 			uint g=gray[x+j+(i+y)*GRAYX];
-			int g0=g&0x0000ffff;
-			int g1=g>>16;
-			int t0=buffer[sklid*192*24+i*192+j]-g0;
-			int t1=buffer[sklid*192*24+i*192+j]-g1;
+			uint g0=g&0x0000ffff;
+			uint g1=g>>16;
+			uint t0=buffer[sklid*192*24+i*192+j]-g0;
+			uint t1=buffer[sklid*192*24+i*192+j]-g1;
 			sc0+=t0*t0;
 			sc1+=t1*t1;
 		}
 	}
 	
 	
+	Sum1Result[gid]=sc0/mem_STRLENALL[sklid]*7;
+	Sum1Result[gid+101*24*12]=sc1/mem_STRLENALL[sklid]*7;
+}
+
+
+
+//最小値
+//今の所local_size=32で固定
+__kernel void GetMin(__global int* Sum1Result,__global int* Sum2Result)
+{
+	int gid = get_global_id(0);
+	int sklid=gid/32;//0～101*2
+	int lid=gid%32;
+	int reg=Sum1Result[sklid*24*12+lid];
+	for(int i=1;i<9;i++)
+	{
+		reg=min(Sum1Result[sklid*24*12+i*32+lid],reg);
+	}
+	
+	__local int msum[32];
+	msum[lid]=reg;
 	
 	
+	for(int i=16;i>0;i/=2)
+	{
+		barrier(CLK_LOCAL_MEM_FENCE);
+		if (lid<i)
+		{
+			msum[lid]=min(msum[lid+i],msum[lid]);
+		}
+	}
 	
-	Sum1Result[gid*2]=sc0;
-	Sum1Result[gid*2+1]=sc1;
+	if (lid==0)
+	{
+		Sum2Result[sklid]=msum[0];
+	}
+	
+	
 }

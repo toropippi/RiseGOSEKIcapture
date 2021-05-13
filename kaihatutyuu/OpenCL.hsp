@@ -13,10 +13,19 @@ goto*____________last4
 	krn_Col_to_Gray=HCLCreateKernel(prg,"Col_to_Gray")//スロットロードに使う
 	krn_Col_to_Gray_slot=HCLCreateKernel(prg,"Col_to_Gray_slot")//毎フレーム変換するほう
 	krn_Mypos=HCLCreateKernel(prg,"Mypos")//最初の1回求めるやつ
-	krn_Match=HCLCreateKernel(prg,"Match")//
-	krn_Match2=HCLCreateKernel(prg,"Match2")//
+	krn_Match2=HCLCreateKernel(prg,"Match2")
+	krn_GetMin=HCLCreateKernel(prg,"GetMin")
 
 	//メモリ
+	//スキル画像の横幅
+	GRPHCSSX=68,188,116,116,140,140,188,140,116,140,92,68,92,92,164,68,164,140,92,92,92,192,92,68,68,44,92,44,68,44,68,116,44,92,92,188,92,44,92,44,20,92,68,44,164,68,140,92,116,68,92,92,92,164,44,164,44,92,92,68,68,68,192,92,116,164,140,116,68,92,68,68,140,164,140,140,140,92,92,164,68,44,92,116,92,92,44,92,44,140,92,68,44,164,68,164,68,92,44,92,68
+	mem_GRPHCSSX=HCLCreateBufferFrom(GRPHCSSX)
+	mem_myposcol=HCLCreateBuffer((10020*24+32)*4)//x座標、y座標、skill_noから色をとってくる
+	mem_mypos=HCLCreateBuffer((10020*24+32)*4)//x座標、y座標、skill_no
+	//スコア倍数
+	STRLENALL = 3,7,5,5,6,6,7,6,5,6,4,3,3,4,7,3,7,6,4,4,4,7,4,3,3,2,4,2,3,2,3,5,2,4,4,7,4,2,4,2,1,4,3,2,7,3,6,4,5,3,4,4,4,7,2,7,2,4,4,3,3,3,7,4,5,7,6,5,3,4,3,3,6,7,6,6,6,4,4,7,3,2,4,5,4,4,2,4,2,6,4,3,2,7,3,7,3,4,2,4,3
+	mem_STRLENALL = HCLCreateBufferFrom(STRLENALL)
+	
 	pxsize=24*192*SKLNUM
 	mem_skl_col=HCLCreateBuffer(24*192*3)//スキルロード用
 	mem_col4=HCLCreateBuffer((szlist.0+4)*(szlist.1+4)*3)
@@ -37,22 +46,24 @@ goto*____________last4
 	
 	whitescore=HCLCreateBuffer(2*4)
 	blackscore=HCLCreateBuffer(2*4)
-	//結果出力用。101枚ごとに28*12アレイのスカラーがある
+	//結果出力用。101枚ごとに24*12アレイのスカラーがある
 	Sum1Result=HCLCreateBuffer(101*24*12*2*4)//
+	Sum2Result=HCLCreateBuffer(101*2*4)//24*12の中の最小値をいれる。
+
+	
+
+	//カーネルセット
+	HCLSetKrns krn_Match2,mem_GRPHCSSX,mem_buffer,mem_gry45,Sum1Result,mem_STRLENALL
+	HCLSetKrns krn_GetMin,Sum1Result,Sum2Result
+	return
+	
 	/*
 	//      スキル1,スキル2 ,Lv1     ,Lv2     ,スロ画像,紙の護石,スロット,装備スキル
 	xylist=34  ,180,34  ,256,271 ,214,271 ,290,229 ,78 ,63  ,6  ,6   ,86 ,121 ,142
 	szlist=220 ,32 ,220 ,32 ,96  ,36 ,96  ,36 ,132 ,44 ,140 ,36 ,128 ,32 ,132 ,30
 */
-	return
-	
 
 *clfirstInit2
-	//スキル画像の横幅
-	GRPHCSSX=68,188,116,116,140,140,188,140,116,140,92,68,92,92,164,68,164,140,92,92,92,192,92,68,68,44,92,44,68,44,68,116,44,92,92,188,92,44,92,44,20,92,68,44,164,68,140,92,116,68,92,92,92,164,44,164,44,92,92,68,68,68,192,92,116,164,140,116,68,92,68,68,140,164,140,140,140,92,92,164,68,44,92,116,92,92,44,92,44,140,92,68,44,164,68,164,68,92,44,92,68
-	mem_GRPHCSSX=HCLCreateBufferFrom(GRPHCSSX)
-	mem_myposcol=HCLCreateBuffer((10020*24+32)*4)//x座標、y座標、skill_noから色をとってくる
-	mem_mypos=HCLCreateBuffer((10020*24+32)*4)//x座標、y座標、skill_no
 	HCLSetKrns krn_Mypos,mem_myposcol,mem_mypos,mem_GRPHCSSX,mem_buffer
 	HCLDoKrn1 krn_Mypos,(10020*24+32),64
 	//これで、101枚マッチングの際に、global_idから自分の色がO(1)でわかる
@@ -99,46 +110,8 @@ goto*____________last4
 	return
 
 *Match100
-	//毎フレーム更新されるmem_gry45と
-	//mem_bufferを比較
-	
-	//HCLFillBuffer4 Sum1Result,0,0,101*28*12*2*4
-	//HCLSetKrns krn_Match,mem_myposcol,mem_mypos,mem_gry45,Sum1Result
-	//HCLDoKrn1 krn_Match,10020*24,32,0//10020*24
-
-	HCLSetKrns krn_Match2,mem_GRPHCSSX,mem_buffer,mem_gry45,Sum1Result
 	HCLDoKrn1 krn_Match2,24*12*101,32,0
-	
+	HCLDoKrn1 krn_GetMin,101*2*32,32
 	return
-
-/*
-	
-	dim host_A,n
-	dim host_B,n
-	dim host_C,n
-		repeat n
-		host_A.cnt=cnt//HSPで初期値を代入
-		host_B.cnt=cnt
-		loop
-	
-	HCLWriteBuffer clmem_A,host_A,n*4,0,0//CPU→GPU
-	HCLWriteBuffer clmem_B,host_B,n*4,0,0//CPU→GPU
-	
-	HCLSetKernel krn,0,clmem_A//OpenCLコードの"vecAdd"に引数を適応
-	HCLSetKernel krn,1,clmem_B//OpenCLコードの"vecAdd"に引数を適応
-	HCLSetKernel krn,2,clmem_C//OpenCLコードの"vecAdd"に引数を適応
-	
-	mes "計算start"
-	HCLDoKrn1 krn,n,n//GPUで計算。HCLDoKrn1は1次元の数で並列数を指定する命令
-	HCLReadBuffer clmem_C,host_C,n*4,0,0//GPU→CPU
-	mes "計算end"
-	
-		repeat n
-		mes ""+host_A.cnt+" + "+host_B.cnt+" = "+host_C.cnt
-		loop
-	stop
-
-*/
-
 
 *____________last4

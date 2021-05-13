@@ -13,9 +13,17 @@ gosub*Fileload
 gosub*Fileload2
 gosub*clfirstInit2
 
+dim h2res,101*2
+dim h2res0,103
+dim h2res1,103
 goseki_count=0
+int2oku=int64(2000000000)
+int50man=int64(500000)
+
 	//メインループ
 	repeat -1
+	HCLFillBuffer4 blackscore,0,0,8
+	HCLFillBuffer4 whitescore,0,0,8
 	gosub*capture
 	gosub*splitgrphc//1枚のキャプチャ画像から各領域を切り抜く
 	gosub*skillchk//スキル画像マッチ確認、順位表更新
@@ -27,7 +35,7 @@ goseki_count=0
 	gosub*txtedit//スキル内容出力
 	gosub*savetext//Escキーでテキスト出力終了
 	
-	await 1
+	await 14
 	loop
 
 stop
@@ -60,74 +68,35 @@ stop
 	return
 
 *skillchk
-	dim out,SKLNUM2*2*2
-	dim out0,SKLNUM2*2
-	dim out1,SKLNUM2*2
 	gosub*Match100
-	//___Match100 sliderstat,out
 
+	HCLReadBuffer Sum2Result,h2res,101*2*4
+	memcpy h2res0,h2res,101*4,0,0
+	memcpy h2res1,h2res,101*4,0,101*4
 
-	dim hres,101*24*12*2
-	dim hres0,101*24*12
-	dim hres1,101*24*12
-	HCLReadBuffer Sum1Result,hres,101*24*12*2*4
-	//Sum1Result=HCLCreateBuffer(101*28*12*2*4)
-		repeat 101*24*12
-		hres0.cnt=hres.(cnt*2)
-		loop
-		
-		repeat 101*24*12
-		hres1.cnt=hres.(cnt*2+1)
-		loop
-		/*
-			screen 121,640,480,0
-			sdim outk,65536
-				repeat 101
-				outk+=""+hres0.cnt+"\t"+hres1.cnt+"\n"
-				loop
-			mesbox outk,640,480,5
-			stop*/
-
-
-
-	dim skl0_minls,101
-	dim skl1_minls,101
-			
+	dim h_b,8//black
+	dim h_w,8//white
+	HCLReadBuffer blackscore,h_b,8
+	HCLReadBuffer whitescore,h_w,8
+	h2res0.101=int(Min64(int64(h_b.0)*91,int2oku))
+	h2res1.101=int(Min64(int64(h_b.1)*91,int2oku))
+	h2res0.102=int(Min64(Max64(int50man-int64(h_w.0),0)*65536,int2oku))
+	h2res1.102=int(Min64(Max64(int50man-int64(h_w.1),0)*65536,int2oku))
 	
-	dim tmp,24*12
-		repeat 101
-		memcpy tmp,hres0,24*12*4,0,cnt*24*12*4
-		sortval tmp,0
-		skl0_minls.cnt=tmp.gid0
-		loop
-	
-		repeat 101
-		memcpy tmp,hres1,24*12*4,0,cnt*24*12*4
-		sortval tmp,0
-		skl1_minls.cnt=tmp.0
-		loop
-
-
 	dim out0,SKLNUM2*2
-	sortval skl0_minls,0
-	memcpy out0,skl0_minls,101*4
-		repeat 101
+	sortval h2res0,0
+	memcpy out0,h2res0,103*4
+		repeat 103
 		sortget out0.(cnt+SKLNUM2),cnt
 		loop
 
 	dim out1,SKLNUM2*2
-	sortval skl1_minls,0
-	memcpy out1,skl1_minls,101*4
-		repeat 101
+	sortval h2res1,0
+	memcpy out1,h2res0,103*4
+		repeat 103
 		sortget out1.(cnt+SKLNUM2),cnt
 		loop
 
-
-
-		
-	
-	//memcpy out0,out,SKLNUM2*2*4,0,0
-	//memcpy out1,out,SKLNUM2*2*4,0,SKLNUM2*2*4
 
 	//スキル順位表更新
 	last_sklstr1=sklstr1
@@ -243,10 +212,11 @@ stop
 *gsel2view
 	gsel 2
 
-	redraw 0	
+	redraw 0
 	//単色
 	color 211,211,211
-	boxf 
+	boxf 190,0,442,164
+	boxf 0,164,442,760
 	
 	//50%に縮小して表示
 	pos 0,0
@@ -311,7 +281,6 @@ stop
 	mes sklstr2
 
 	redraw 1
-
 	return
 
 *txtedit
