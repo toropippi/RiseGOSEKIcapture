@@ -4,6 +4,11 @@
 #define _PI 96.0
 #define _2PI 192.0
 
+#deffunc ModuInit
+	int2oku=int64(2000000000)
+	int50man=int64(500000)
+	return
+
 
 #defcfunc max int p1, int p2
 	if p1 < p2 : return p2
@@ -93,5 +98,14 @@
 
 	color 0,0,0
 	return "RARE?"
-	
+
+
+#defcfunc BlackCalc int val
+	if val>20160000:return 0
+	ret=int(Min64(int64(val)*91,int2oku))
+	return ret
+
+#defcfunc WhiteCalc int val
+	ret=int(Min64(Max64(int50man-int64(val),0)*65536,int2oku))
+	return ret
 #global

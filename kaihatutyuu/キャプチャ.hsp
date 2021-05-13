@@ -11,19 +11,11 @@ gosub*ScreenSetting
 gosub*clfirstInit
 gosub*Fileload
 gosub*Fileload2
-gosub*clfirstInit2
+ModuInit
 
-dim h2res,101*2
-dim h2res0,103
-dim h2res1,103
-goseki_count=0
-int2oku=int64(2000000000)
-int50man=int64(500000)
 
 	//メインループ
 	repeat -1
-	HCLFillBuffer4 blackscore,0,0,8
-	HCLFillBuffer4 whitescore,0,0,8
 	gosub*capture
 	gosub*splitgrphc//1枚のキャプチャ画像から各領域を切り抜く
 	gosub*skillchk//スキル画像マッチ確認、順位表更新
@@ -35,7 +27,7 @@ int50man=int64(500000)
 	gosub*txtedit//スキル内容出力
 	gosub*savetext//Escキーでテキスト出力終了
 	
-	await 14
+	await 11
 	loop
 
 stop
@@ -50,50 +42,57 @@ stop
 
 //1枚のキャプチャ画像から各領域を切り抜く
 *splitgrphc
-		repeat 6
-		if cnt==2:continue
-		if cnt==3:continue
-		if cnt==5:continue
-		gsel 4+cnt
-		pos 0,0
-		p1=xylist.(cnt*2)-bdr
-		p2=xylist.(cnt*2+1)-bdr
-		p3=szlist.(cnt*2)+bdr*2
-		p4=szlist.(cnt*2+1)+bdr*2
-		gcopy 3,p1,p2,p3,p4
-		loop
+	gsel 4
+	pos 0,0
+	p1=xylist.(0*2)-bdr
+	p2=xylist.(0*2+1)-bdr
+	p3=szlist.(0*2)+bdr*2
+	p4=szlist.(0*2+1)+bdr*2
+	gcopy 3,p1,p2,p3,p4
+	
+	pos 0,szlist.1+bdr*2
+	p1=xylist.(1*2)-bdr
+	p2=xylist.(1*2+1)-bdr
+	p3=szlist.(1*2)+bdr*2
+	p4=szlist.(1*2+1)+bdr*2
+	gcopy 3,p1,p2,p3,p4
 
-	gosub*SetCapBuf01
-	gosub*SetCapBuf4
+	gsel 8
+	pos 0,0
+	p1=xylist.(4*2)-bdr
+	p2=xylist.(4*2+1)-bdr
+	p3=szlist.(4*2)+bdr*2
+	p4=szlist.(4*2+1)+bdr*2
+	gcopy 3,p1,p2,p3,p4
+	
+	gosub*SklFrame
+	gosub*SlotFrame
 	return
 
 *skillchk
 	gosub*Match100
 
-	HCLReadBuffer Sum2Result,h2res,101*2*4
-	memcpy h2res0,h2res,101*4,0,0
-	memcpy h2res1,h2res,101*4,0,101*4
+	HCLReadBuffer Sum2Result,h2res,SKLNUM*2*4
+	memcpy h2res0,h2res,SKLNUM*4,0,0
+	memcpy h2res1,h2res,SKLNUM*4,0,SKLNUM*4
 
-	dim h_b,8//black
-	dim h_w,8//white
-	HCLReadBuffer blackscore,h_b,8
-	HCLReadBuffer whitescore,h_w,8
-	h2res0.101=int(Min64(int64(h_b.0)*91,int2oku))
-	h2res1.101=int(Min64(int64(h_b.1)*91,int2oku))
-	h2res0.102=int(Min64(Max64(int50man-int64(h_w.0),0)*65536,int2oku))
-	h2res1.102=int(Min64(Max64(int50man-int64(h_w.1),0)*65536,int2oku))
+	//dim h_b,8//black
+	//dim h_w,8//white
+	HCLReadBuffer blackwhitescore,h_bw,16
+	h2res0.SKLNUM=BlackCalc(h_bw.0)
+	h2res1.SKLNUM=BlackCalc(h_bw.1)
+	h2res0.(SKLNUM+1)=WhiteCalc(h_bw.2)
+	h2res1.(SKLNUM+1)=WhiteCalc(h_bw.3)
 	
-	dim out0,SKLNUM2*2
 	sortval h2res0,0
-	memcpy out0,h2res0,103*4
-		repeat 103
+	memcpy out0,h2res0,SKLNUM2*4
+		repeat 39
 		sortget out0.(cnt+SKLNUM2),cnt
 		loop
 
-	dim out1,SKLNUM2*2
 	sortval h2res1,0
-	memcpy out1,h2res0,103*4
-		repeat 103
+	memcpy out1,h2res0,SKLNUM2*4
+		repeat 39
 		sortget out1.(cnt+SKLNUM2),cnt
 		loop
 
@@ -116,12 +115,12 @@ stop
 	return
 
 *slotchk
-	dim out_a,3
-	dim out_b,3
-	dim out_c,3
-	dim out_d,3
-	dim slotout,3//認識したスロット内容が格納される
-	dim slotoutsc,3//
+//	dim out_a,3
+//	dim out_b,3
+//	dim out_c,3
+//	dim out_d,3
+//	dim slotout,3//認識したスロット内容が格納される
+//	dim slotoutsc,3//
 		repeat 3
 		slotout.cnt=-1
 		mnsc=200000000
@@ -168,7 +167,7 @@ stop
 	gsel 3
 	xofst=xylist.8+42
 	yofst=xylist.9-8
-	dim ratesc,8//0-6にrate1-7のスコアが、7に一番可能性の高いレートがはいる
+	//dim ratesc,8//0-6にrate1-7のスコアが、7に一番可能性の高いレートがはいる
 	pgetcnt=0
 		repeat 3
 		yofst-=2
@@ -202,9 +201,9 @@ stop
 		
 			start_time=HCLGetEventLogs(0,6)//6はCL_PROFILING_COMMAND_STARTのtime
 			end_time=HCLGetEventLogs(0,7)//7はCL_PROFILING_COMMAND_ENDのtime
-			calctime=int(end_time-start_time)
+			calctime=int(end_time-start_time)/1000
 	
-		title "fps="+fpscnt+" "+calctime+""
+		title "fps="+fpscnt+" "+calctime+"us"
 		fpscnt=0
 	}
 	return

@@ -30,6 +30,36 @@ goto*________________________last2
 	//重複管理 スキル1,スキル2,スキル2Lv*8+スキル1Lv,スロットC*16+スロットB*4+スロットA,
 	sdim gosekidup,(SKLNUM+1)*(SKLNUM+1)*8*8*4*4*4/8//1bitでありなしを判定
 	onexit goto *endlabel//終了ボタン押したとき
+
+	//スキル画像横幅
+	GRPHCSSX=68,188,116,116,140,140,188,140,116,140,92,68,92,92,164,68,164,140,92,92,92,192,92,68,68,44,92,44,68,44,68,116,44,92,92,188,92,44,92,44,20,92,68,44,164,68,140,92,116,68,92,92,92,164,44,164,44,92,92,68,68,68,192,92,116,164,140,116,68,92,68,68,140,164,140,140,140,92,92,164,68,44,92,116,92,92,44,92,44,140,92,68,44,164,68,164,68,92,44,92,68
+	dim GRPHCSSX_sm,SKLNUM+1
+		repeat SKLNUM
+		GRPHCSSX_sm.(cnt+1)=GRPHCSSX_sm.cnt+GRPHCSSX.cnt
+		loop
+	dim GRPHCSSX4,SKLNUM
+		repeat SKLNUM
+		GRPHCSSX4.cnt=GRPHCSSX.cnt/4
+		loop
+		
+	//スコア倍率
+	STRLENALL = 3,7,5,5,6,6,7,6,5,6,4,3,3,4,7,3,7,6,4,4,4,7,4,3,3,2,4,2,3,2,3,5,2,4,4,7,4,2,4,2,1,4,3,2,7,3,6,4,5,3,4,4,4,7,2,7,2,4,4,3,3,3,7,4,5,7,6,5,3,4,3,3,6,7,6,6,6,4,4,7,3,2,4,5,4,4,2,4,2,6,4,3,2,7,3,7,3,4,2,4,3
+
+	//変数初期化
+	dim h2res,SKLNUM*2
+	dim h2res0,SKLNUM2
+	dim h2res1,SKLNUM2
+	dim out0,SKLNUM2*2
+	dim out1,SKLNUM2*2
+	dim h_bw,4//black
+	dim out_a,3
+	dim out_b,3
+	dim out_c,3
+	dim out_d,3
+	dim slotout,3//認識したスロット内容が格納される
+	dim slotoutsc,3//
+	dim ratesc,8//0-6にrate1-7のスコアが、7に一番可能性の高いレートがはいる
+	goseki_count=0
 	return
 
 
@@ -72,24 +102,14 @@ goto*________________________last2
 		}
 	return
 
+	//キャプチャされた画像からさらに分離した画像がはいるバッファ
 *Screen3to9Init
 	buffer 3,wx,wy//キャプチャされた画像がはいるバッファ
-	//キャプチャされた画像からさらに分離した画像がはいるバッファ
-	dim _xsz,6
-	dim _ysz,6
-		repeat 6
-		if cnt==2:continue
-		if cnt==3:continue
-		if cnt==5:continue
-		_xsz.cnt=szlist.(cnt*2)+bdr*2
-		_ysz.cnt=szlist.(cnt*2+1)+bdr*2
-		buffer 4+cnt,_xsz.cnt,_ysz.cnt
-		loop
-		
+	buffer 4,szlist.0+bdr*2,(szlist.1+bdr*2)*2//スキルキャプチャ*2
+	buffer 8,szlist.8+bdr*2,szlist.9+bdr*2//スロットキャプチャ*1
+	
 	gsel 4
-	mref mrefv4,66
-	gsel 5
-	mref mrefv5,66
+	mref mrefv45,66
 	gsel 8
 	mref mrefv8,66
 	return
@@ -102,19 +122,20 @@ goto*________________________last2
 		pos 0,0
 		picload "skill\\"+cnt+".png",1
 		ccnt=cnt
-		gosub*Set100TpBuf
+		gosub*SklLoad
 		loop
 	return
 
 //スロット画像などをロードしてプラグインのほうに受け渡し
 *Fileload2
+	buffer 10,36,28*4
 	//スロット画像
 		repeat 4
-		buffer 10:picload "slot\\"+cnt+".png"
-		xx=ginfo(12)
-		yy=ginfo(13)
-		gosub*SetUserTpBuf
+		pos 0,cnt*28
+		picload "slot\\"+cnt+".png",1
 		loop
+	
+	gosub*SlotLoad
 	return
 
 *________________________last2
