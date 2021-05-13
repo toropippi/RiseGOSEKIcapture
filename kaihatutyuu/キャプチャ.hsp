@@ -18,16 +18,22 @@ ModuInit
 	repeat -1
 	gosub*capture
 	gosub*splitgrphc//1枚のキャプチャ画像から各領域を切り抜く
-	gosub*skillchk//スキル画像マッチ確認、順位表更新
-	gosub*slotchk//スロット画像確認
-	gosub*levelchk//スキルのレベルチェック
-	gosub*ratechk//護石のレートチェック
+
+	gosub*GPUTask
+	
+	gosub*skillchk//スキル画像マッチ結果取得、順位表更新
+	gosub*slotchk//スロット画像マッチ結果取得
+	
 	gosub*fpsview
 	gosub*gsel2view//スキル認識テキスト表示、カットオフ値描画
 	gosub*txtedit//スキル内容出力
 	gosub*savetext//Escキーでテキスト出力終了
 	
 	await 11
+
+	gosub*levelchk//スキルのレベルチェック
+	gosub*ratechk//護石のレートチェック
+	
 	loop
 
 stop
@@ -69,9 +75,13 @@ stop
 	gosub*SlotFrame
 	return
 
-*skillchk
+*GPUTask
 	gosub*Match100
+	gosub*MatchSlot44
+	HCLFlush
+	return
 
+*skillchk
 	HCLReadBuffer Sum2Result,h2res,SKLNUM*2*4
 	memcpy h2res0,h2res,SKLNUM*4,0,0
 	memcpy h2res1,h2res,SKLNUM*4,0,SKLNUM*4
@@ -115,23 +125,16 @@ stop
 	return
 
 *slotchk
-//	dim out_a,3
-//	dim out_b,3
-//	dim out_c,3
-//	dim out_d,3
-//	dim slotout,3//認識したスロット内容が格納される
-//	dim slotoutsc,3//
+	HCLReadBuffer Sum4Result,slsc
+
 		repeat 3
 		slotout.cnt=-1
 		mnsc=200000000
-		//___MatchManually 0,sliderstat,out_a,0+42*cnt,22+42*cnt
-		//___MatchManually 1,sliderstat,out_b,0+42*cnt,22+42*cnt
-		//___MatchManually 2,sliderstat,out_c,0+42*cnt,22+42*cnt
-		//___MatchManually 3,sliderstat,out_d,0+42*cnt,22+42*cnt
-		if mnsc>out_a:mnsc=out_a:slotout.cnt=0
-		if mnsc>out_b:mnsc=out_b:slotout.cnt=1
-		if mnsc>out_c:mnsc=out_c:slotout.cnt=2
-		if mnsc>out_d:mnsc=out_d:slotout.cnt=3
+		ccnt=cnt
+			repeat 4
+			_slsc=slsc.(cnt*3+ccnt)
+			if mnsc>_slsc:mnsc=_slsc:slotout.ccnt=cnt
+			loop
 		slotoutsc.cnt=mnsc
 		loop
 	
@@ -139,8 +142,6 @@ stop
 
 *levelchk
 	gsel 3
-	dim sklLV,2
-	dim sklLV_debug,2
 		repeat 2
 		flg=0
 		bcnt=0
@@ -202,8 +203,12 @@ stop
 			start_time=HCLGetEventLogs(0,6)//6はCL_PROFILING_COMMAND_STARTのtime
 			end_time=HCLGetEventLogs(0,7)//7はCL_PROFILING_COMMAND_ENDのtime
 			calctime=int(end_time-start_time)/1000
+			
+			start_time2=HCLGetEventLogs(1,6)//6はCL_PROFILING_COMMAND_STARTのtime
+			end_time2=HCLGetEventLogs(1,7)//7はCL_PROFILING_COMMAND_ENDのtime
+			calctime2=int(end_time2-start_time2)/1000
 	
-		title "fps="+fpscnt+" "+calctime+"us"
+		title "fps="+fpscnt+" スキル認識"+calctime+"us スロ認識"+calctime2+"us"
 		fpscnt=0
 	}
 	return
@@ -272,7 +277,7 @@ stop
 
 	//順位表表示
 	color 0,0,0
-	font "メイリオ",12,0
+	font msgothic,12,0
 	pos 0,280
 	mes sklstr1
 	
@@ -284,10 +289,10 @@ stop
 
 *txtedit
 	out1line=""
-	out1line+=""+SKLALLSTR.(out0.SKLNUM2)+"\t"+sklLV.0+"\t"
-	out1line+=""+SKLALLSTR.(out1.SKLNUM2)+"\t"+sklLV.1+"\t"
-	out1line+=""+slotout.0+"\t"+slotout.1+"\t"+slotout.2+"\t"
-	out1line+=""+(ratesc.7+1)+"\n"
+	out1line+=""+SKLALLSTR.(out0.SKLNUM2)+","+sklLV.0+","
+	out1line+=""+SKLALLSTR.(out1.SKLNUM2)+","+sklLV.1+","
+	out1line+=""+slotout.0+","+slotout.1+","+slotout.2+"\n"
+	//out1line+=""+(ratesc.7+1)+"\n"
 	if last_out1line!=out1line{
 		if out0.SKLNUM2<SKLNUM{
 			if out0.0<2000000000{

@@ -30,6 +30,42 @@ __kernel void SklLoad(__global uchar* col,int offset,__global uchar* gray,uint x
 
 
 
+//スロット4枚のそのままロード
+__kernel void SlotLoad(__global uchar* col,__global uint* gray)
+{
+	uint gid = get_global_id(0);
+	uint x=gid%36;
+	uint y=gid/36;
+	
+	uint ret=0;
+	for(int i=0;i<4;i++)
+	{
+		uint idx=x+y*36+i*36*28;
+		uint b=col[idx*3  ];
+		uint g=col[idx*3+1];
+		uint r=col[idx*3+2];
+		uint sum = (r + g + b)/3;
+		ret*=256;
+		ret+=sum;
+	}
+	gray[gid]=ret;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 //colはSKILLSY*192*3byte
@@ -73,23 +109,11 @@ __kernel void SklFrame(__global uchar* col,__global uchar* gray,__global int* bl
 
 
 
-//スロット4枚のそのままロード
-__kernel void SlotLoad(__global uchar* col,__global int* gray)
-{
-	uint gid = get_global_id(0);
-	int b=col[gid*3  ];
-	int g=col[gid*3+1];
-	int r=col[gid*3+2];
-	int sum = r + g + b;
-	gray[gid]=sum/3;
-}
-
-
 
 
 
 //colはx*y*3byte
-__kernel void SlotFrame(__global uchar* col,__global int* gray)
+__kernel void SlotFrame(__global uchar* col,__global uchar* gray)
 {
 	uint gid = get_global_id(0);
 	int b=col[gid*3  ];
@@ -111,7 +135,7 @@ __kernel void SlotFrame(__global uchar* col,__global int* gray)
 	if (flg >= 1) {
 		sum = 0;
 	}
-	gray[gid]=sum/3;
+	gray[gid]=(uchar)(sum/3);
 }
 
 
@@ -242,11 +266,102 @@ __kernel void GetMin(__global int* Sum1Result,__global int* Sum2Result)
 
 
 
+/*
+136 ,48の大きさから
+4枚を3箇所で
+22*20スライド
+36*28px
+*/
+//global_size=22*20 *3箇所
+//dslotgryは36*28のuint型
+//gry8は136*48のuchar型
+//テンプレートマッチング、スロットのほう
+__kernel void MatchSlot(__global uint* dslotgry,__global uchar* gry8,__global uint* Sum3Result)
+{
+	uint gid = get_global_id(0);
+	uint kasyo = gid/(22*20);
+	uint x = gid%(22*20);//キャプ画像でのoffset
+	uint y = x/22;//キャプ画像でのoffset
+	x%=22;
+	
+	uint sc0=0;
+	uint sc1=0;
+	uint sc2=0;
+	uint sc3=0;
+	uint bf0,t0;
+	for(int i=0;i<28;i++)
+	{
+		for(int j=0;j<36;j++)
+		{
+			uint bf=dslotgry[i*36+j];
+			uint g0=gry8[(i+y)*136+j+x+42*kasyo];
+			bf0=bf&0x000000ff;
+			t0=bf0-g0;
+			sc0+=t0*t0;
+			
+			bf0=(bf>>8)&0x000000ff;
+			t0=bf0-g0;
+			sc1+=t0*t0;
+			
+			bf0=(bf>>16)&0x000000ff;
+			t0=bf0-g0;
+			sc2+=t0*t0;
+			
+			bf0=bf>>24;
+			t0=bf0-g0;
+			sc3+=t0*t0;
+		}
+	}
+	
+	
+	Sum3Result[gid+22*20*3*0]=sc0;
+	Sum3Result[gid+22*20*3*1]=sc1;
+	Sum3Result[gid+22*20*3*2]=sc2;
+	Sum3Result[gid+22*20*3*3]=sc3;
+}
 
 
 
+/*
 
-
+22*20スライド
+4枚*3箇所
+から4*3のスコアを求めたい
+*/
+//32スレッドが22*20をまとめる。つまりglobal_size=32*4*3
+__kernel void SlotSum(__global int* Sum3Result,__global int* Sum4Result)
+{
+	int gid = get_global_id(0);
+	int mk=gid/32;
+	int maime=mk/3;
+	int kasyo=mk%3;
+	int lid=gid%32;
+	
+	
+	int reg=Sum3Result[mk*22*20+lid];
+	for(int i=lid+32;i<22*20;i+=32)
+	{
+		reg=min(Sum3Result[mk*22*20+i],reg);
+	}
+	
+	__local int msum[32];
+	msum[lid]=reg;
+	
+	for(int i=16;i>0;i/=2)
+	{
+		barrier(CLK_LOCAL_MEM_FENCE);
+		if (lid<i)
+		{
+			msum[lid]=min(msum[lid+i],msum[lid]);
+		}
+	}
+	
+	if (lid==0)
+	{
+		Sum4Result[mk]=msum[0];
+	}
+	
+}
 
 
 
