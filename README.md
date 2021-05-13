@@ -83,7 +83,28 @@
 # GOSEKIcapture2_CUI  
  他のソフトから起動されることを想定されたソフトです。  
  コマンドライン引数に画像ファイル名を指定することで、スキル認識を行い結果をテキストで出力します。  
+## 対応形式
+ 画像ファイルは  
+ ・png
+ ・jpg
+ ・bmp
+ 形式をサポートしています。  
+ 解像度は1920x1080や1280x720の16:9画像が対応しています。  
+## 実行
+ 実行形式ですが、例えばこのような形で実行することができます。  
  ![readme0](https://user-images.githubusercontent.com/44022497/118168339-b5832e80-b462-11eb-98bc-c99341365509.png)  
- 例えばこのような形で実行することができます。  
- ![readme1](https://user-images.githubusercontent.com/44022497/118168390-c469e100-b462-11eb-90ea-1b06ffe8b265.png)
- ![readme2](https://user-images.githubusercontent.com/44022497/118168392-c5027780-b462-11eb-8c7d-96afbd2ecd99.png)
+## 結果出力
+ 結果出力は下記のようになります。  
+ ![readme2](https://user-images.githubusercontent.com/44022497/118168392-c5027780-b462-11eb-8c7d-96afbd2ecd99.png)  
+ 実行ファイルと同じ階層に出力されます。  
+## デバッグ出力
+ ↓これはデバッグ機能みたいなものです。  
+ ![readme1](https://user-images.githubusercontent.com/44022497/118168390-c469e100-b462-11eb-90ea-1b06ffe8b265.png)  
+ 実際にキャプチャされた部分が切り出されて出力されます。  
+ またソフト内で引数がどのような文字列で処理されたかも見ることができます。  
+ 
+## 読み取り座標指定
+ GOSEKIcapture2Setting.txtの座標数値を変えることで任意の座標からの読み取りが可能になります。  
+ デフォルトでは  
+![mhr](https://user-images.githubusercontent.com/44022497/118169366-d1d39b00-b463-11eb-8558-dd0332087345.jpg)  
+ このシーンの読み取りを行う設定になっています。
