@@ -319,9 +319,10 @@ stop
 	out1line=""
 	out1line+=""+SLLLS.(out0.SKLNUM2)+","+sklLV.0+","
 	out1line+=""+SLLLS.(out1.SKLNUM2)+","+sklLV.1+","
-	out1line+=""+slotout.0+","+slotout.1+","+slotout.2+"\n"
+	out1line+=""+slotout.0+","+slotout.1+","+slotout.2
+	out1line=spltstr(out1line)+"\n"
 	//out1line+=""+(ratesc.7+1)+"\n"
-	if last_out1line!=out1line{
+	if (last_out1line!=out1line)&(out1line!=",,,,,,"){
 		if out0.SKLNUM2<SKLNUM{
 			if out0.0<2000000000{
 				if sklLV.0>=1{
@@ -388,3 +389,39 @@ stop
 		poke gosekidup,dup_idx/8,bit8
 	}
 	return
+
+
+
+#module
+#defcfunc spltstr str buf_
+	buf=buf_
+	//buf=",0,,0,3,3,3"
+	//sdim results,128,6
+	split buf, "," , results
+
+	ret0=",,,,,,"
+	ret=0
+	if (int(results.1)!=0)&(int(results.1)<=7){
+		if (int(results.6)<=int(results.5))&(int(results.5)<=int(results.4)){
+			if results.0!=""{
+				if results.0==results.2:ret=0:return ret0
+				if int(results.3)==0{
+					if results.2!="":return ret0
+				}
+				if results.2==""{
+					if int(results.3)!=0:return ret0
+				}
+				
+				if (int(results.6)+int(results.5)+int(results.4))==9:return ret0
+				ret=1
+			}
+		}
+	}
+
+	if ret==0{
+		return ret0
+	}else{
+		return buf_
+	}
+	return ret0
+#global

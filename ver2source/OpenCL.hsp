@@ -94,7 +94,7 @@ goto*____________last4
 //ƒXƒLƒ‹•”•ª‚Ì“]‘—
 *SklFrame
 	HCLWriteBuffer mem_col45,mrefv45,,,,0
-	HCLFillBuffer4 blackwhitescore,0,0,16
+	HCLFillBuffer_i32 blackwhitescore,0,0,16
 	HCLDoKrn1 krn_SklFrame,224*36*2,64
 	return
 

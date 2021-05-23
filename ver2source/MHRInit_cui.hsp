@@ -67,6 +67,7 @@ goto*________________________last2
 	buffer 3,wx,wy//キャプチャされた画像がはいるバッファ
 	buffer 4,szlist.0+bdr*2,(szlist.1+bdr*2)*2//スキルキャプチャ*2
 	buffer 8,szlist.8+bdr*2,szlist.9+bdr*2//スロットキャプチャ*1
+	buffer 30,1920,1080
 	
 	gsel 4
 	mref mrefv45,66

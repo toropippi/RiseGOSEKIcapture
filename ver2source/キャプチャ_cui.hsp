@@ -19,6 +19,7 @@ gosub*Fileload
 gosub*Fileload2
 ModuInit
 gosub*cmdlinekaitou
+gosub*HCLgzoomfuncInit
 
 notesel GOSEKIcapture2Setting
 noteget capx,3//1122
@@ -51,9 +52,13 @@ end
 		pos 0,0
 		gcopy 29,capx,capy,wx,wy
 	}else{
-		buffer 30,1920,1080
+		gsel 30
 		pos 0,0
-		gzoom 1920,1080,29,0,0,x29,y29,1
+		if x29\4!=0{
+			gzoom 1920,1080,29,0,0,x29,y29,1
+		}else{
+			gosub*HCLgzoomfunc
+		}
 		gsel 3
 		pos 0,0
 		gcopy 30,capx,capy,wx,wy
@@ -208,7 +213,7 @@ end
 	out1line+=""+SLLLS.(out0.SKLNUM2)+","+sklLV.0+","
 	out1line+=""+SLLLS.(out1.SKLNUM2)+","+sklLV.1+","
 	out1line+=""+slotout.0+","+slotout.1+","+slotout.2+","
-	out1line+=""+(ratesc.7+1)+"\n"
+	out1line+=""+(ratesc.7+1)
 	/*
 	if last_out1line!=out1line{
 		if out0.SKLNUM2<SKLNUM{
@@ -232,7 +237,7 @@ end
 		}
 	}*/
 	
-	outtxt_bk+=out1line
+	outtxt_bk+=spltstr(out1line)+"\n"
 	return
 
 *cmdlinekaitou
@@ -258,3 +263,116 @@ end
 		flst.cnt=p1
 		loop
 	return
+
+
+
+
+
+*HCLgzoomfuncInit
+	source={"__kernel void gzoom(__global unsigned char* g0,__global unsigned char* g1
+	,int wx0,int wy0,int wx1,int wy1)
+	{
+		int gid=get_global_id(0);
+		int x=gid%wx1;
+		int y=gid/wx1;
+		
+		int srclx=x*wx0;
+		int srcrx=(x+1)*wx0;
+		int srcly=y*wy0;
+		int srcry=(y+1)*wy0;
+
+		ulong r_sm=0;
+		ulong g_sm=0;
+		ulong b_sm=0;
+
+		int read_x=(srclx/wx1+1)*wx1;
+		int read_y=(srcly/wy1+1)*wy1;
+		int l=srclx;
+		int u=srcly;
+
+		for(int d=read_y;;)
+		{
+			if (d>=srcry)d=srcry;
+			int ysz=d-u;
+			for(int r=read_x,l=srclx;;)
+			{
+				if (r>=srcrx)r=srcrx;
+				int xsz=r-l;
+				b_sm+=ysz*xsz*(int)g0[(l/wx1+(u/wy1)*wx0)*3+0];
+				g_sm+=ysz*xsz*(int)g0[(l/wx1+(u/wy1)*wx0)*3+1];
+				r_sm+=ysz*xsz*(int)g0[(l/wx1+(u/wy1)*wx0)*3+2];
+				l=r;
+				if (l>=srcrx)break;
+				r+=wx1;
+			}
+			u=d;
+			if (u>=srcry)break;
+			d+=wy1;
+		}
+
+		ulong rev=wx0*wy0;
+		g1[(x+y*wx1)*3+0] = (unsigned char)(b_sm/rev);
+		g1[(x+y*wx1)*3+1] = (unsigned char)(g_sm/rev);
+		g1[(x+y*wx1)*3+2] = (unsigned char)(r_sm/rev);
+	}
+"}//,wx1*wy1,0,host_g0,host_g1,wx0,wy0,wx1,wy1
+	prg_gzoom=HCLCreateProgramWithSource(source)
+	krn_gzoom=HCLCreateKernel(prg_gzoom,"gzoom")
+	return
+
+*HCLgzoomfunc
+	gsel 29
+	wx0=x29
+	wy0=y29
+	mref host_g0,66
+	
+	gsel 30
+	wx1=ginfo(12)
+	wy1=ginfo(13)
+	mref host_g1,66
+
+	dev_g0=HCLCreateBufferFrom(host_g0)
+	dev_g1=HCLCreateBufferFrom(host_g1)
+	HCLSetkrns krn_gzoom,dev_g0,dev_g1,wx0,wy0,wx1,wy1
+	HCLDokrn1 krn_gzoom,wx1*wy1,0
+	HCLReadBuffer dev_g1,host_g1
+	HCLReleaseBuffer dev_g0
+	HCLReleaseBuffer dev_g1
+	return
+
+
+#module
+#defcfunc spltstr str buf_
+	buf=buf_
+	//buf=",0,,0,3,3,3,0"
+	//sdim results,128,7
+	split buf, "," , results
+
+	ret0=",,,,,,,"
+	ret=0
+	if (int(results.1)!=0)&(int(results.1)<=5){
+		if int(results.7)!=0{
+			if (int(results.6)<=int(results.5))&(int(results.5)<=int(results.4)){
+				if results.0!=""{
+					if results.0==results.2:ret=0:return ret0
+					if int(results.3)==0{
+						if results.2!="":return ret0
+					}
+					if results.2==""{
+						if int(results.3)!=0:return ret0
+					}
+					
+					if (int(results.6)+int(results.5)+int(results.4))==9:return ret0
+					ret=1
+				}
+			}
+		}
+	}
+
+	if ret==0{
+		return ret0
+	}else{
+		return buf_
+	}
+	return ret0
+#global
