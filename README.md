@@ -83,8 +83,11 @@
 ---------------------------------------------------------------  
 # GOSEKIcapture2_CUI  
  ver2CUIフォルダにあります。  
- 他のソフトから起動されることを想定されたソフトです。(なので自由に再配布可能です。)
+ 他のソフトから起動されることを想定されたソフトです。(こちらも自由に再配布可能です。)
  コマンドライン引数に画像ファイル名を指定することで、スキル認識を行い結果をテキストで出力します。  
+ GOSEKIcapture2_CUI:ファイル名を１つずつコマンドライン引数に指定することで動きます。  
+ GOSEKIcapture2_CUI_Folder:フォルダ名を１つコマンドライン引数に指定することで動きます。   
+ 
 ## 対応形式
  画像ファイルは  
  ・png  
@@ -92,20 +95,30 @@
  ・bmp  
  形式をサポートしています。  
  解像度は1920x1080や1280x720の16:9画像が対応しています。  
+
 ## 実行
  実行形式ですが、例えばこのような形で実行することができます。  
+ ・GOSEKIcapture2_CUIのほう  
  ![readme0](https://user-images.githubusercontent.com/44022497/118168339-b5832e80-b462-11eb-98bc-c99341365509.png)  
+  
+ ・GOSEKIcapture2_CUI_Folderのほう  
+ ![howto_cuif](https://user-images.githubusercontent.com/44022497/119833652-3dc10380-bf3a-11eb-9585-8db31acfd056.png)  
+  
+  
 ## 結果出力
+
  結果出力は下記のようになります。  
  ![readme1](https://user-images.githubusercontent.com/44022497/118168390-c469e100-b462-11eb-90ea-1b06ffe8b265.png)  
  実行ファイルと同じ階層に出力されます。  
 ## デバッグ出力
+
  ↓これはデバッグ機能みたいなものです。  
  ![readme2](https://user-images.githubusercontent.com/44022497/118168392-c5027780-b462-11eb-8c7d-96afbd2ecd99.png)  
  実際にキャプチャされた部分が切り出されて出力されます。  
  またソフト内で引数がどのような文字列で処理されたかも見ることができます。  
  
 ## 読み取り座標指定
+
  GOSEKIcapture2Setting.txtの座標数値を変えることで任意の座標からの読み取りが可能になります。  
  デフォルトでは  
 ![mhr](https://user-images.githubusercontent.com/44022497/118169366-d1d39b00-b463-11eb-8558-dd0332087345.jpg)  

@@ -18,7 +18,7 @@ gosub*clfirstInit
 gosub*Fileload
 gosub*Fileload2
 ModuInit
-gosub*cmdlinekaitou
+gosub*cmdlinekaitou_Folder
 gosub*HCLgzoomfuncInit
 
 notesel GOSEKIcapture2Setting
@@ -240,6 +240,7 @@ end
 	outtxt_bk+=spltstr(out1line)+"\n"
 	return
 
+//file読込の方
 *cmdlinekaitou
 	sdim dc,strlen(dir_cmdline)+4096
 	dc=dir_cmdline
@@ -262,6 +263,27 @@ end
 		noteget p1,cnt
 		flst.cnt=p1
 		loop
+	return
+
+//folderの方
+*cmdlinekaitou_Folder
+	dc=dir_cmdline
+	if peek(dc,0)==32{
+		dc=strmid(dc,1,strlen(dc)-1)
+	}
+	bsave "コマンドライン引数.txt",dc,strlen(dc)
+	s5=dir_cur
+	chdir dc
+	dirlist dcfiles,"*.*",3
+	notesel dcfiles
+
+	fnum=noteinfo(0)
+	sdim flst,1024,fnum
+		repeat fnum
+		noteget p1,cnt
+		flst.cnt=""+dc+"\\"+p1
+		loop
+	chdir s5
 	return
 
 
