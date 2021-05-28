@@ -11,6 +11,7 @@ szlist=220 ,32 ,220 ,32 ,96  ,36 ,96  ,36 ,132 ,44 ,140 ,36 ,128 ,32 ,132 ,30
 #include "MHRInit_cui.hsp"
 #include "MHRModule.hsp"
 #include "OpenCL.hsp"
+#include "hsp3util.as"
 
 gosub*ValArraySetting
 gosub*ScreenSetting
@@ -275,13 +276,14 @@ end
 	s5=dir_cur
 	chdir dc
 	dirlist dcfiles,"*.*",3
-	notesel dcfiles
-
-	fnum=noteinfo(0)
+	
+	note2array list_arr,dcfiles//ï°êîçsï∂éöóÒÇîzóÒÇ÷
+	fnum=length(list_arr)
+	qsort list_arr,fnum/2,0,fnum
+	
 	sdim flst,1024,fnum
 		repeat fnum
-		noteget p1,cnt
-		flst.cnt=""+dc+"\\"+p1
+		flst.cnt=""+dc+"\\"+list_arr.cnt
 		loop
 	chdir s5
 	return
@@ -397,4 +399,42 @@ end
 		return buf_
 	}
 	return ret0
+
+
+
+#uselib "shlwapi"
+#cfunc StrCmpLogicalW "StrCmpLogicalW" wstr, wstr
+
+#deffunc qsort array a,int pivotcnt,int i_,int j_
+	if j_-i_<=1:return
+	
+	i=i_
+	j=j_-1
+	p=a.pivotcnt
+		repeat -1
+			repeat -1
+			if StrCmpLogicalW(a.i,p)>=0:break
+			i++
+			if i==j_:break
+			loop
+
+			repeat -1
+			if StrCmpLogicalW(a.j,p)<=0:break
+			j--
+			if j<=i:break
+			loop
+		if i<j{//swap
+			tmp=a.i
+			a.i=a.j
+			a.j=tmp
+			i++
+			j--
+		}else{
+			break
+		}
+		loop
+
+	if i-i_>=2:qsort a,(i_+i)/2,i_,i
+	if j_-i>=2:qsort a,(i+j_)/2,i,j_
+	return
 #global
