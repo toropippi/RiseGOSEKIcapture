@@ -33,8 +33,9 @@
 
 
 //gselで指定した画面をrgbを1色にしてfloat型に、さらに0.0～1.0に色が収まるように
-//memidをint64で入力する形式
-#deffunc gselToBufferFloat2 int gid,var int64memid
+//memidをmoduke型変数で入力する形式
+#deffunc gselToBufferFloat2 int gid,var A
+	int64memid=int64(CLMmem(A))
 	if IMGprg==0{
 		IMGprg=HCLCreateProgramWithSource({"
 		__kernel void gselToBufferFloat(__global uchar *buf,__global float *vout) 
@@ -53,6 +54,10 @@
 	gsel gid
 	mref i,66
 	vramchar3=HCLCreateBufferFrom(i)
+	if ginfo(12)*ginfo(13)!=CLMraw(A)*CLMcol(A){
+		dialog "サイズがあわないエラー",1
+		end
+	}
 	//vout=HCLCreateBuffer(ginfo(12)*ginfo(13)*4)//float型を想定
 	HCLSetkrns krngselToBufferFloat,vramchar3,int64memid
 	HCLDoKrn1_sub krngselToBufferFloat,ginfo(12)*ginfo(13),64
@@ -117,6 +122,7 @@
 
 //arrayはarray.0=memid , array.1=行数 , array.2=列数
 //C=A*B 転置フラグつき
+//Cは最初からサイズが正しいもので生成されてないと行けない
 #deffunc npdot var C,var A,var B,int c_t,int a_t,int b_t
 	if prgid==0{
 		prgid=HCLCreateProgram("SGEMM.cl")
@@ -206,6 +212,107 @@
 	if bflag!=0:HCLReleaseBuffer Bdmy.0
 	if cflag!=0:HCLReleaseBuffer Cdmy.0
 	return
+
+
+//arrayはarray.0=memid , array.1=行数 , array.2=列数
+//C=A*B 転置フラグつき
+//Cは内部の情報が一旦全部消されて再生成される
+#deffunc npdot_newC var C,var A,var B,int c_t,int a_t,int b_t
+	if prgid==0{
+		prgid=HCLCreateProgram("SGEMM.cl")
+		krnSGEMM_a=HCLCreateKernel(prgid,"SGEMM_a")
+		krnSGEMM_k=HCLCreateKernel(prgid,"SGEMM_k")
+		krnSGEMM_s=HCLCreateKernel(prgid,"SGEMM_small")
+		krn_Trans=HCLCreateKernel(prgid,"Trans")
+	}
+	dim64 Cdmy,3
+	dim64 Admy,3
+	dim64 Bdmy,3
+	Cdmy.0=int64(CLMmem(C))
+	Cdmy.1=int64(CLMraw(C))
+	Cdmy.2=int64(CLMcol(C))
+	HCLReleaseBuffer Cdmy.0
+	
+	aflag=0//最終的に転置するかフラグ
+	bflag=0
+	cflag=0
+	abswap=0//転置する前にa,b入れ替えするか
+
+	allbit=1*c_t+2*a_t+4*b_t
+
+	if allbit==1:cflag=1
+	if allbit==2:aflag=1
+	if allbit==3:aflag=1:abswap=1
+	if allbit==4:bflag=1
+	if allbit==5:bflag=1:abswap=1
+	if allbit==6:cflag=1:abswap=1
+	if allbit==7:abswap=1
+	
+	if abswap==1{
+		Admy.0=int64(CLMmem(B))
+		Admy.1=int64(CLMraw(B))
+		Admy.2=int64(CLMcol(B))		
+		Bdmy.0=int64(CLMmem(A))
+		Bdmy.1=int64(CLMraw(A))
+		Bdmy.2=int64(CLMcol(A))
+	}else{
+		Admy.0=int64(CLMmem(A))
+		Admy.1=int64(CLMraw(A))
+		Admy.2=int64(CLMcol(A))		
+		Bdmy.0=int64(CLMmem(B))
+		Bdmy.1=int64(CLMraw(B))
+		Bdmy.2=int64(CLMcol(B))
+	}
+
+	
+	if aflag==1{
+		srca=Admy.0
+		Admy.0 = HCLCreateBuffer(Admy.1*Admy.2*4)
+		HCLSetKrns krn_Trans,int(Admy.1),int(Admy.2),srca,Admy.0
+		HCLDoKrn2 krn_Trans,(int(Admy.2)+15)/16*16,(int(Admy.1)+15)/16*16,16,16
+		tmp=Admy.1
+		Admy.1=Admy.2
+		Admy.2=tmp
+	}
+	
+	if bflag==1{
+		srcb=Bdmy.0
+		Bdmy.0 = HCLCreateBuffer(Bdmy.1*Bdmy.2*4)
+		HCLSetKrns krn_trans,int(Bdmy.1),int(Bdmy.2),srcb,Bdmy.0
+		HCLDoKrn2 krn_trans,(int(Bdmy.2)+15)/16*16,(int(Bdmy.1)+15)/16*16,16,16
+		tmp=Bdmy.1
+		Bdmy.1=Bdmy.2
+		Bdmy.2=tmp
+	}
+
+	if Admy.2!=Bdmy.1:dialog "縦横サイズエラー：行列積できません":end
+	
+	if cflag==1{
+		Cdmy.1=Bdmy.2
+		Cdmy.2=Admy.1
+		Cdmy.0 = HCLCreateBuffer(Cdmy.1*Cdmy.2*4)
+	}else{
+		Cdmy.1=Admy.1
+		Cdmy.2=Bdmy.2
+		Cdmy.0 = HCLCreateBuffer(Cdmy.1*Cdmy.2*4)
+	}
+
+	GEMM Cdmy,Admy,Bdmy
+
+	if cflag==1{
+		resC=HCLCreateBuffer(Cdmy.1*Cdmy.2*4)
+		HCLSetKrns krn_trans,int(Cdmy.1),int(Cdmy.2),Cdmy.0,resC
+		HCLDoKrn2 krn_trans,(int(Cdmy.2)+15)/16*16,(int(Cdmy.1)+15)/16*16,16,16
+		HCLReleaseBuffer Cdmy.0
+		Cdmy.0=resC
+	}
+
+	if aflag!=0:HCLReleaseBuffer Admy.0
+	if bflag!=0:HCLReleaseBuffer Bdmy.0
+
+	CLMswap_Write C,Cdmy.0,int(Cdmy.1),int(Cdmy.2)
+	return
+
 
 //C=A*Bをやるだけ
 #deffunc GEMM array C,array A,array B

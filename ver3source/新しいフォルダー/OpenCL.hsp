@@ -9,7 +9,19 @@
 	noteget p1,1
 	HCLSetDevice int(p1)
 	prg=HCLCreateProgram("deeplearning.cl")//OpenCLのコードが書かれたファイル。コンパイルもここで
-	
+
+
+	newmod matX,CLMatrix,128,22
+	buffer 1:picload "sampl0.png"
+	gsel 0
+	gselToBufferFloat2 1,matX
+	CLMview(matX)
+	stop
+
+
+
+
+*普通の行列表列席
 	//カーネル
 	//krn_=HCLCreateKernel(prg,"")
 	newmod matA,CLMatrix,4,4
@@ -37,4 +49,4 @@
 	
 	screen 2,640,480
 	CLMview(matC)
-	
+	stop
