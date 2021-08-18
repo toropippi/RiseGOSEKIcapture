@@ -1,0 +1,440 @@
+#packopt hide 1
+
+#const wx 384//キャプチャサイズ
+#const wy 336//キャプチャサイズ
+#const bdr 2//ボーダーサイズ、bgscrのくり抜きはボーダーこの3倍になる
+//      スキル1,スキル2 ,Lv1     ,Lv2     ,スロ画像,紙の護石,スロット,装備スキル
+xylist=34  ,180,34  ,256,271 ,214,271 ,290,229 ,78 ,63  ,6  ,6   ,86 ,121 ,142
+szlist=220 ,32 ,220 ,32 ,96  ,36 ,96  ,36 ,132 ,44 ,140 ,36 ,128 ,32 ,132 ,30
+
+#include "HSPCL64.as"
+#include "MHRInit_cui.hsp"
+#include "MHRModule.hsp"
+#include "OpenCL.hsp"
+#include "hsp3util.as"
+
+gosub*ValArraySetting
+gosub*ScreenSetting
+gosub*clfirstInit
+gosub*Fileload
+gosub*Fileload2
+ModuInit
+gosub*cmdlinekaitou_Folder
+gosub*HCLgzoomfuncInit
+
+notesel GOSEKIcapture2Setting
+noteget capx,3//1122
+noteget capy,5//236
+capx=int(capx)
+capy=int(capy)
+
+	//メインループ
+	repeat fnum
+	gosub*capture
+	gosub*splitgrphc//1枚のキャプチャ画像から各領域を切り抜く
+	gosub*GPUTask
+	gosub*levelchk//スキルのレベルチェック
+	gosub*ratechk//護石のレートチェック
+	gosub*skillchk//スキル画像マッチ結果取得、順位表更新
+	gosub*slotchk//スロット画像マッチ結果取得
+	gosub*txtedit//スキル内容出力
+	loop
+
+bsave "GOSEKICUIout.txt",outtxt_bk,strlen(outtxt_bk)
+end
+
+//スクリーンキャプチャ
+*capture
+	buffer 29:picload flst.cnt
+	x29=ginfo(12)
+	y29=ginfo(13)
+	if (x29==1920)&(y29==1280){
+		gsel 3
+		pos 0,0
+		gcopy 29,capx,capy,wx,wy
+	}else{
+		gsel 30
+		pos 0,0
+		if x29\4!=0{
+			gzoom 1920,1080,29,0,0,x29,y29,1
+		}else{
+			gosub*HCLgzoomfunc
+		}
+		gsel 3
+		pos 0,0
+		gcopy 30,capx,capy,wx,wy
+	}
+	return
+
+//1枚のキャプチャ画像から各領域を切り抜く
+*splitgrphc
+	gsel 4
+	pos 0,0
+	p1=xylist.(0*2)-bdr
+	p2=xylist.(0*2+1)-bdr
+	p3=szlist.(0*2)+bdr*2
+	p4=szlist.(0*2+1)+bdr*2
+	gcopy 3,p1,p2,p3,p4
+	
+	pos 0,szlist.1+bdr*2
+	p1=xylist.(1*2)-bdr
+	p2=xylist.(1*2+1)-bdr
+	p3=szlist.(1*2)+bdr*2
+	p4=szlist.(1*2+1)+bdr*2
+	gcopy 3,p1,p2,p3,p4
+
+	gsel 8
+	pos 0,0
+	p1=xylist.(4*2)-bdr
+	p2=xylist.(4*2+1)-bdr
+	p3=szlist.(4*2)+bdr*2
+	p4=szlist.(4*2+1)+bdr*2
+	gcopy 3,p1,p2,p3,p4
+
+	if cnt==0{
+		gsel 4
+		bmpsave "キャプチャーskill.bmp"
+		gsel 8
+		bmpsave "キャプチャーslot.bmp"
+	}
+	
+	gosub*SklFrame
+	gosub*SlotFrame
+	return
+
+*GPUTask
+	gosub*Match100
+	gosub*MatchSlot44
+	HCLFlush
+	return
+
+*skillchk
+	HCLReadBuffer Sum2Result,h2res,SKLNUM*2*4
+	memcpy h2res0,h2res,SKLNUM*4,0,0
+	memcpy h2res1,h2res,SKLNUM*4,0,SKLNUM*4
+
+	HCLReadBuffer blackwhitescore,h_bw,16
+	h2res0.SKLNUM=BlackCalc(h_bw.0)
+	h2res1.SKLNUM=BlackCalc(h_bw.1)
+	h2res0.(SKLNUM+1)=WhiteCalc(h_bw.2)
+	h2res1.(SKLNUM+1)=WhiteCalc(h_bw.3)
+	
+	sortval h2res0,0
+	memcpy out0,h2res0,SKLNUM2*4
+		repeat 39
+		sortget out0.(cnt+SKLNUM2),cnt
+		loop
+
+	sortval h2res1,0
+	memcpy out1,h2res1,SKLNUM2*4
+		repeat 39
+		sortget out1.(cnt+SKLNUM2),cnt
+		loop
+
+	return
+
+*slotchk
+	HCLReadBuffer Sum4Result,slsc
+
+		repeat 3
+		slotout.cnt=-1
+		mnsc=slidersc/100
+		if mnsc>4000000:mnsc=2000000000
+		
+		ccnt=cnt
+			repeat 4
+			_slsc=slsc.(cnt*3+ccnt)
+			if mnsc>_slsc:mnsc=_slsc:slotout.ccnt=cnt
+			loop
+		slotoutsc.cnt=mnsc
+		loop
+	
+	return
+
+*levelchk
+	gsel 3
+		repeat 2
+		flg=0
+		bcnt=0
+		xofst=xylist.(cnt*2)+19
+		yofst=xylist.(cnt*2+1)+56
+			repeat 120
+			pget xofst+cnt*2,yofst
+			if ginfo_b>100{
+				bcnt++
+				flg=0
+			}else{
+				flg++
+				if flg>6:break
+			}
+			loop
+		
+		sklLV.cnt=(bcnt+5)/9
+		sklLV_debug.cnt=bcnt
+		loop
+	//7-16-26
+	return
+
+*ratechk
+	gsel 3
+		repeat 7
+		ratesc.cnt=0
+		loop
+		
+	xofst=xylist.8+42
+	yofst=xylist.9-8
+	pgetcnt=0
+		repeat 3
+		yofst-=2
+			repeat 50
+			if pgetcnt>12:break
+			pget xofst+cnt*2,yofst
+			sumcol=ginfo_r+ginfo_g+ginfo_b
+			if sumcol>140{
+				toHSV rateH,_S,_V,ginfo_r,ginfo_g,ginfo_b
+				rateH=HtoRate(rateH)
+				if rateH!=-1{
+					ratesc.(rateH-1)++
+					pgetcnt++
+				}
+			}
+			loop
+		loop
+
+	maxval=0
+	ratesc.7=-1
+		repeat 7
+		if ratesc.cnt>maxval:maxval=ratesc.cnt:ratesc.7=cnt
+		loop
+	return
+
+
+*txtedit
+	out1line=""
+	out1line+=""+SLLLS.(out0.SKLNUM2)+","+sklLV.0+","
+	out1line+=""+SLLLS.(out1.SKLNUM2)+","+sklLV.1+","
+	out1line+=""+slotout.0+","+slotout.1+","+slotout.2+","
+	out1line+=""+(ratesc.7+1)
+	/*
+	if last_out1line!=out1line{
+		if out0.SKLNUM2<SKLNUM{
+			if out0.0<2000000000{
+				if sklLV.0>=1{
+					if (slotout.0>=0)&(slotout.1>=0)&(slotout.2>=0){
+						gosub*dupcheck
+						last_out1line=out1line//追加しなくても認識はしていた
+						if dupcheckflag==0{//追加していいなら
+							outtxt+=out1line
+							outtxt_bk+=out1line
+							goseki_count++
+							if ONorOFFswitch==0{//更新
+								gsel 2
+								objprm msbxmainid,outtxt
+							}
+						}
+					}
+				}
+			}
+		}
+	}*/
+	
+	outtxt_bk+=spltstr(out1line)+"\n"
+	return
+
+//file読込の方
+*cmdlinekaitou
+	sdim dc,strlen(dir_cmdline)+4096
+	dc=dir_cmdline
+	strrep dc,"  "," "
+	strrep dc," ","\n"
+	notesel dc
+		repeat 10
+		noteget p1,0
+		if p1==""{
+			notedel 0
+		}else{
+			break
+		}
+		loop
+	bsave "コマンドライン引数.txt",dc,strlen(dc)
+	notesel dc
+	fnum=noteinfo(0)
+	sdim flst,1024,fnum
+		repeat fnum
+		noteget p1,cnt
+		flst.cnt=p1
+		loop
+	return
+
+//folderの方
+*cmdlinekaitou_Folder
+	dc=dir_cmdline
+	if peek(dc,0)==32{
+		dc=strmid(dc,1,strlen(dc)-1)
+	}
+	bsave "コマンドライン引数.txt",dc,strlen(dc)
+	s5=dir_cur
+	chdir dc
+	dirlist dcfiles,"*.*",3
+	
+	note2array list_arr,dcfiles//複数行文字列を配列へ
+	fnum=length(list_arr)
+	qsort list_arr,fnum/2,0,fnum
+	
+	sdim flst,1024,fnum
+		repeat fnum
+		flst.cnt=""+dc+"\\"+list_arr.cnt
+		loop
+	chdir s5
+	return
+
+
+
+
+
+*HCLgzoomfuncInit
+	source={"__kernel void gzoom(__global unsigned char* g0,__global unsigned char* g1
+	,int wx0,int wy0,int wx1,int wy1)
+	{
+		int gid=get_global_id(0);
+		int x=gid%wx1;
+		int y=gid/wx1;
+		
+		int srclx=x*wx0;
+		int srcrx=(x+1)*wx0;
+		int srcly=y*wy0;
+		int srcry=(y+1)*wy0;
+
+		ulong r_sm=0;
+		ulong g_sm=0;
+		ulong b_sm=0;
+
+		int read_x=(srclx/wx1+1)*wx1;
+		int read_y=(srcly/wy1+1)*wy1;
+		int l=srclx;
+		int u=srcly;
+
+		for(int d=read_y;;)
+		{
+			if (d>=srcry)d=srcry;
+			int ysz=d-u;
+			for(int r=read_x,l=srclx;;)
+			{
+				if (r>=srcrx)r=srcrx;
+				int xsz=r-l;
+				b_sm+=ysz*xsz*(int)g0[(l/wx1+(u/wy1)*wx0)*3+0];
+				g_sm+=ysz*xsz*(int)g0[(l/wx1+(u/wy1)*wx0)*3+1];
+				r_sm+=ysz*xsz*(int)g0[(l/wx1+(u/wy1)*wx0)*3+2];
+				l=r;
+				if (l>=srcrx)break;
+				r+=wx1;
+			}
+			u=d;
+			if (u>=srcry)break;
+			d+=wy1;
+		}
+
+		ulong rev=wx0*wy0;
+		g1[(x+y*wx1)*3+0] = (unsigned char)(b_sm/rev);
+		g1[(x+y*wx1)*3+1] = (unsigned char)(g_sm/rev);
+		g1[(x+y*wx1)*3+2] = (unsigned char)(r_sm/rev);
+	}
+"}//,wx1*wy1,0,host_g0,host_g1,wx0,wy0,wx1,wy1
+	prg_gzoom=HCLCreateProgramWithSource(source)
+	krn_gzoom=HCLCreateKernel(prg_gzoom,"gzoom")
+	return
+
+*HCLgzoomfunc
+	gsel 29
+	wx0=x29
+	wy0=y29
+	mref host_g0,66
+	
+	gsel 30
+	wx1=ginfo(12)
+	wy1=ginfo(13)
+	mref host_g1,66
+
+	dev_g0=HCLCreateBufferFrom(host_g0)
+	dev_g1=HCLCreateBufferFrom(host_g1)
+	HCLSetkrns krn_gzoom,dev_g0,dev_g1,wx0,wy0,wx1,wy1
+	HCLDokrn1 krn_gzoom,wx1*wy1,0
+	HCLReadBuffer dev_g1,host_g1
+	HCLReleaseBuffer dev_g0
+	HCLReleaseBuffer dev_g1
+	return
+
+
+#module
+#defcfunc spltstr str buf_
+	buf=buf_
+	//buf=",0,,0,3,3,3,0"
+	//sdim results,128,7
+	split buf, "," , results
+
+	ret0=",,,,,,,"
+	ret=0
+	if (int(results.1)!=0)&(int(results.1)<=5){
+		if int(results.7)!=0{
+			if (int(results.6)<=int(results.5))&(int(results.5)<=int(results.4)){
+				if results.0!=""{
+					if results.0==results.2:ret=0:return ret0
+					if int(results.3)==0{
+						if results.2!="":return ret0
+					}
+					if results.2==""{
+						if int(results.3)!=0:return ret0
+					}
+					
+					if (int(results.6)+int(results.5)+int(results.4))==9:return ret0
+					ret=1
+				}
+			}
+		}
+	}
+
+	if ret==0{
+		return ret0
+	}else{
+		return buf_
+	}
+	return ret0
+
+
+
+#uselib "shlwapi"
+#cfunc StrCmpLogicalW "StrCmpLogicalW" wstr, wstr
+
+#deffunc qsort array a,int pivotcnt,int i_,int j_
+	if j_-i_<=1:return
+	
+	i=i_
+	j=j_-1
+	p=a.pivotcnt
+		repeat -1
+			repeat -1
+			if StrCmpLogicalW(a.i,p)>=0:break
+			i++
+			if i==j_:break
+			loop
+
+			repeat -1
+			if StrCmpLogicalW(a.j,p)<=0:break
+			j--
+			if j<=i:break
+			loop
+		if i<j{//swap
+			tmp=a.i
+			a.i=a.j
+			a.j=tmp
+			i++
+			j--
+		}else{
+			break
+		}
+		loop
+
+	if i-i_>=2:qsort a,(i_+i)/2,i_,i
+	if j_-i>=2:qsort a,(i+j_)/2,i,j_
+	return
+#global

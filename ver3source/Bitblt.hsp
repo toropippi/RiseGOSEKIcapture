@@ -1,0 +1,19 @@
+#uselib "gdi32.dll"
+#define NULL        0
+#define SRCCOPY     0x00CC0020
+#define CAPTUREBLT  0x40000000
+#cfunc CreateDC "CreateDCA" sptr,sptr,sptr,int
+#func DeleteDC "DeleteDC"  int
+#func BitBlt "BitBlt" int,int,int,int,int,int,int,int,int
+	//キャプチャの設定
+	; デスクトップ画面のデバイスコンテキスト取得
+	hdcScreen = CreateDC("DISPLAY", NULL, NULL, NULL)
+
+goto*_________________last1
+//キャプチャのやつ
+*endlabel
+	; デバイスコンテキスト削除
+	DeleteDC hdcScreen
+	end
+
+*_________________last1

@@ -1,0 +1,30 @@
+//高dpiのモジュールロード
+;//https://wiki.hsp.moe/%E4%B8%8D%E5%AE%9A%E5%BD%A2%E3%83%AA%E3%83%BC%E3%82%B8%E3%83%A7%E3%83%B3.html
+;//http://hsp.tv/play/pforum.php?mode=pastwch&num=24700
+#uselib "gdi32.dll"
+#ifndef SetProcessDPIAware
+#uselib "user32"
+#func SetProcessDPIAware "SetProcessDPIAware"
+#endif
+
+#uselib "shcore"
+#func SetProcessDpiAwareness "SetProcessDpiAwareness" int
+//#func GetScaleFactorForMonitor "GetScaleFactorForMonitor" int, int
+
+#const PROCESS_PER_MONITOR_DPI_AWARE 2
+#const DISPLAY_DEVICE_PRIMARY_DEVICE 4
+#const DISPLAY_DEVICE_ACTIVE 1
+#const ENUM_CURRENT_SETTINGS -1
+#const MONITOR_DEFAULTTONULL 0
+#const LOGPIXELSX 88
+#const LOGPIXELSY 90
+#const HALFTONE 4
+#const TA_LEFT 0
+#const TA_RIGHT 2
+#const TA_CENTER 6
+
+    if varptr(SetProcessDpiAwareness) {
+        SetProcessDpiAwareness PROCESS_PER_MONITOR_DPI_AWARE
+    } else : if varptr(SetProcessDPIAware) {
+        SetProcessDPIAware
+    }

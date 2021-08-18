@@ -1,0 +1,66 @@
+;	リージョンサンプル (by Kpan)
+#uselib "gdi32"
+#cfunc CreateRectRgn "CreateRectRgn" int, int, int, int
+#func CombineRgn "CombineRgn" int, int, int, int
+#func DeleteObject "DeleteObject" int
+
+#uselib "user32"
+#func SetWindowRgn "SetWindowRgn" int, int, int
+
+// ウィンドウ移動制御用の定数
+#define global WM_NCLBUTTONDOWN     $000000A1
+#define global HTCAPTION            2
+
+
+#const wx 384//キャプチャサイズ
+#const wy 336//キャプチャサイズ
+#const bdr 2//ボーダーサイズ、bgscrのくり抜きはボーダーこの3倍になる
+
+	bgscr 0,wx,wy,0,0,20
+	gsel 0,2
+	color 0,149,0
+	boxf
+	onclick gosub *idou;▼マウスドラッグによるウィンドウ移動
+
+	//      スキル1,スキル2 ,Lv1     ,Lv2     ,スロ画像,紙の護石,スロット,装備スキル
+	xylist=34  ,180,34  ,256,271 ,214,271 ,290,229 ,78 ,63  ,6  ,6   ,86 ,121 ,142
+	szlist=220 ,32 ,220 ,32 ,96  ,36 ,96  ,36 ,132 ,44 ,140 ,36 ,128 ,32 ,132 ,30
+	
+;	現在のウィンドウ(四角形)のリージョン作成。
+	xx=xylist.0
+	yy=xylist.1
+	sxx=szlist.0
+	syy=szlist.1
+	hRegion.0 = CreateRectRgn ( xx-bdr*3,yy-bdr*3,xx+sxx+bdr*3,yy+syy+bdr*3)
+		repeat 7,1
+		xx=xylist.(cnt*2)
+		yy=xylist.(cnt*2+1)
+		sxx=szlist.(cnt*2)
+		syy=szlist.(cnt*2+1)
+		hRegion.1=CreateRectRgn ( xx-bdr*3,yy-bdr*3,xx+sxx+bdr*3,yy+syy+bdr*3)
+		CombineRgn hRegion.0, hRegion.0, hRegion.1, 2//結合
+		DeleteObject hRegion.1//使われないhRegion.1は削除
+		loop
+
+		repeat 8
+		xx=xylist.(cnt*2)
+		yy=xylist.(cnt*2+1)
+		sxx=szlist.(cnt*2)
+		syy=szlist.(cnt*2+1)
+		hRegion.1=CreateRectRgn(xx,yy,xx+sxx,yy+syy)
+		CombineRgn hRegion.0, hRegion.0, hRegion.1, 4//取り除く
+		DeleteObject hRegion.1//使われないhRegion.1は削除
+		loop
+
+;	ドーナツ型ウィンドウになる
+	SetWindowRgn hwnd, hRegion.0, 1
+
+goto*_____________________last0
+//ウィンドウドラッグで移動
+*idou
+	gsel 0
+	if (wparam == 1)&(sflag==0) {
+		sendmsg hwnd,WM_NCLBUTTONDOWN,HTCAPTION,0
+	}
+	return
+*_____________________last0
