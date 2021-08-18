@@ -7,7 +7,7 @@
 	return
 
 #modterm
-	//mes "BYEBYE!("+x+","+y+")"
+	HCLReleaseBuffer clmem
 	return
 
 #modfunc CLMview
@@ -32,5 +32,37 @@
 #modcfunc CLMcol
 	return col
 
+#modfunc CLMswap_Write var int64memid,int raw_,int col_
+	clmem=int64memid
+	raw=raw_
+	col=col_
+	return
+
+//src→dstへコピー。dst情報は破棄される
+#modfunc CLMcopy var src
+	HCLReleaseBuffer clmem
+	raw=CLMraw(src)
+	col=CLMcol(src)
+	clmem=HCLCreateBuffer(raw*col*4)
+	HCLCopyBuffer clmem,int64(CLMmem(src))
+	return
+
+
+#global
+
+#module _CLMswap_
+
+#deffunc CLMswap var matB,var matC
+	clmemid_c=int64(CLMmem(matC))
+	raw_c=CLMraw(matC)
+	col_c=CLMcol(matC)
+	
+	clmemid_b=int64(CLMmem(matB))
+	raw_b=CLMraw(matB)
+	col_b=CLMcol(matB)
+	
+	CLMswap_Write matB,clmemid_c,raw_c,col_c
+	CLMswap_Write matC,clmemid_b,raw_b,col_b
+	return
 
 #global
