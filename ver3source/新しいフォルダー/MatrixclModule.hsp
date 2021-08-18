@@ -1,0 +1,36 @@
+#module CLMatrix clmem,raw,col
+
+#modinit int raw_,int col_
+	clmem=HCLCreateBuffer(raw_*col_*4)
+	raw=raw_
+	col=col_
+	return
+
+#modterm
+	//mes "BYEBYE!("+x+","+y+")"
+	return
+
+#modfunc CLMview
+	lmx=limit(col,1,10)
+	lmy=limit(raw,1,12)
+		repeat lmy
+		ccmt=cnt
+			repeat lmx
+			pos cnt*79,ccmt*14
+			data=HCLReadIndex_i32(clmem,cnt+raw*ccmt)
+			mes strf("%3.5f",FloatToDouble(data))
+			loop
+		loop
+	return
+
+#modcfunc CLMmem
+	return str(clmem)
+
+#modcfunc CLMraw
+	return raw
+
+#modcfunc CLMcol
+	return col
+
+
+#global

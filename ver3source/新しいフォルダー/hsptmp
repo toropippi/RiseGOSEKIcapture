@@ -1,0 +1,29 @@
+#include "hspcl64.as"
+#include "NNmodule.hsp"
+
+
+
+	//GPUデバイスせセット
+	HCLinit
+	sdim GOSEKIcapture3Setting,4096
+	notesel GOSEKIcapture3Setting
+	noteload "GOSEKIcapture3Setting.txt"
+	noteget p1,1
+	HCLSetDevice int(p1)
+	prg=HCLCreateProgram("deeplearning.cl")//OpenCLのコードが書かれたファイル。コンパイルもここで
+
+	//カーネル
+	//krn_=HCLCreateKernel(prg,"")
+
+
+	newmod matA,CLMatrix,4,4
+	newmod matB,CLMatrix,4,4
+	newmod matC,CLMatrix,4,4
+
+	HCLFillBuffer_i32 int64(CLMmem(matA)),DoubleToFloat(0.91)
+	HCLFillBuffer_i32 int64(CLMmem(matB)),DoubleToFloat(0.91)
+	npdot matC,matA,matB,0,1,0
+
+	
+	CLMview(matC)
+	
