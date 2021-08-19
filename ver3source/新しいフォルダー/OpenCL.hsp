@@ -7,11 +7,10 @@
 	//M2 = 256 # 2層
 	//D = 128*22 # 入力層
 	//K = 102
-	N=3
+	N=1100*200
 	mlpLayerNum=4
 	dim mlpLayerNode,mlpLayerNum
 	mlpLayerNode=128*22,512,256,102
-
 	
 	//GPUデバイスせセット
 	HCLinit
@@ -23,26 +22,24 @@
 
 	//X作成
 	newmod matX,CLMatrix,N,mlpLayerNode.0
-	
-	buffer 1:picload "samp0.bmp"
-	gsel 0
-	memG=int64(gselToBufferFloat1(1))
-	HCLCopyBuffer int64(CLMmem(matX)),memG,mlpLayerNode.0*4,0,0
-	HCLReleaseBuffer memG
-	
-	buffer 1:picload "samp1.bmp"
-	gsel 0
-	memG=int64(gselToBufferFloat1(1))
-	HCLCopyBuffer int64(CLMmem(matX)),memG,mlpLayerNode.0*4,mlpLayerNode.0*4,0
-	HCLReleaseBuffer memG
-	
-	buffer 1:picload "sampl0.png"
-	gsel 0
-	memG=int64(gselToBufferFloat1(1))
-	HCLCopyBuffer int64(CLMmem(matX)),memG,mlpLayerNode.0*4,mlpLayerNode.0*4*2,0
-	HCLReleaseBuffer memG
 
+	buffer 1:picload "25.png"
+	ddim ansy,1100,200
+	w=0
+		repeat 1100
+		ccnt=cnt
+			repeat 200
+			buffer 2,128,22
+			pos 0,0
+			gcopy 1,10+ccnt,250+cnt,128,22
 
+			memG=int64(gselToBufferFloat1(2))
+			HCLCopyBuffer int64(CLMmem(matX)),memG,mlpLayerNode.0*4,mlpLayerNode.0*4*w,0
+			HCLReleaseBuffer memG
+			w++
+			loop
+		loop
+	
 	gosub*loadwv
     //b = np.zeros((N, M),dtype=np.float32)  # 中間層ニューロンの入力総和
     //z = np.zeros((N, M),dtype=np.float32)  # 中間層ニューロンの出力
@@ -67,28 +64,20 @@
 
 	gosub*FNNmain
 
-	screen 0,640,480
-	pos 0,0
+
 	HCLdim_i32FromBuffer result,int64(CLMmem(matZ.(mlpLayerNum-2)))
-		repeat 102
-		mes int(FloatToDouble(result.cnt)*10000)
-		if ginfo_cy>472:pos ginfo_cx+50,0
+	screen 0,1280,720
+	w=0
+		repeat 1100
+		ccnt=cnt
+			repeat 200
+			col=int(FloatToDouble(result.w)*10000)
+			col=col*255/10000
+			color col,col,col
+			pset ccnt+10,cnt+250
+			w++
+			loop
 		loop
-	
-	screen 10,640,480
-	pos 0,0
-		repeat 102,102
-		mes int(FloatToDouble(result.cnt)*10000)
-		if ginfo_cy>472:pos ginfo_cx+50,0
-		loop
-	
-	screen 11,640,480
-	pos 0,0
-		repeat 102,102*2
-		mes int(FloatToDouble(result.cnt)*10000)
-		if ginfo_cy>472:pos ginfo_cx+50,0
-		loop
-	
 	stop
 
 
@@ -146,36 +135,3 @@
 		offsetread+=sz
 		loop
 	return
-
-
-
-
-*普通の行列表列席
-	//カーネル
-	//krn_=HCLCreateKernel(prg,"")
-	newmod matA,CLMatrix,4,4
-	newmod matB,CLMatrix,4,4
-	newmod matC,CLMatrix,4,4
-	
-	CLMswap matA,matB
-	
-	ma=int64(CLMmem(matA))
-	mb=int64(CLMmem(matB))
-	HCLFillBuffer_i32 ma,DoubleToFloat(0.91)
-	HCLFillBuffer_i32 mb,DoubleToFloat(0.91)
-	
-	HCLWriteIndex_i32 ma,1*4+3,DoubleToFloat(1.91)
-	HCLWriteIndex_i32 mb,3*4+0,DoubleToFloat(1.91)
-	
-	CLMswap matA,matB
-	
-	screen 0,640,480
-	CLMview(matA)
-	screen 1,640,480
-	CLMview(matB)
-	
-	npdot matC,matA,matB,0,0,0
-	
-	screen 2,640,480
-	CLMview(matC)
-	stop
