@@ -1,7 +1,7 @@
 #module CLMatrix clmem,raw,col
 
 #modinit int raw_,int col_
-	clmem=HCLCreateBuffer(raw_*col_*4)
+	clmem=HCLCreateBuffer(int64(raw_)*int64(col_)*4)
 	raw=raw_
 	col=col_
 	return

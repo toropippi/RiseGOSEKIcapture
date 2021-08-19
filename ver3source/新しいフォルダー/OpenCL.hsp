@@ -1,6 +1,21 @@
 #include "hspcl64.as"
 #include "NNmodule.hsp"
 
+//ƒƒ‚
+/*
+cccnt=1
+	repeat 28
+	ccnt=cnt
+		repeat 13
+		gsel 3
+		pos 0,0
+		gcopy 2,752+ccnt,271+51*cccnt+cnt,128,22
+		bmpsave ""+rnd(99)+".bmp"
+		loop
+	loop
+*/
+//‚±‚±‚Ü‚Å
+
 	SKLALLSTR="‚j‚np","ƒAƒCƒeƒ€g—p‹­‰»","ƒK[ƒh‹­‰»","ƒK[ƒh«”\","ƒLƒmƒR‘åD‚«","ƒWƒƒƒ“ƒv“Sl","ƒXƒ^ƒ~ƒi‹}‘¬‰ñ•œ","ƒXƒ^ƒ~ƒi’Dæ","‚Ğ‚é‚İŒyŒ¸","ƒtƒ‹ƒ`ƒƒ[ƒW","ƒuƒŒ—}§","ƒ{ƒ}[","ƒ‰ƒ“ƒi[","‰Î–ê—Í","‰Î‘®«UŒ‚‹­‰»","‰Î‘Ï«","‰ïSŒ‚y‘®«z","‰ñ”ğ‹——£‚t‚o","‰ñ”ğ«”\","‰ñ•œ‘¬“x","ŠŠ‘–‹­‰»","ŠÑ’Ê’eEŠÑ’Ê–î‹­‰»","‹Câ‘Ï«","‹S‰Î“Z","‹t¦‚İ","‹tP","‹­‰»‘±","‹Æ•¨","Œ©Ø‚è","K‰^","Lˆæ‰»","U‚ß‚Ìç¨","UŒ‚","‚‘¬•ÏŒ`","„nŒ¤–","U’eEŠgU–î‹­‰»","€’†‚ÉŠˆ","¨ğ","ã“_“ÁŒø","W’†"," ","æ‚è–¼l","A¶Šw","SŠá","…‘®«UŒ‚‹­‰»","…‘Ï«","‡–°‘®«‹­‰»","‡–°‘Ï«","¸—ì‚Ì‰ÁŒì","‘H‚¢","‘•“UŠg’£","‘•“U‘¬“x","‘¬Ë‹­‰»","‘®«‚â‚ç‚ê‘Ï«","‘Ìp","‘Ì—Í‰ñ•œ—Ê‚t‚o","‘Ïk","’eŠÛß–ñ","’e“±‹­‰»","’n¿Šw","’§íÒ","’´‰ïS","’Êí’eE˜AË–î‹­‰»","“Dá‘Ï«","“J‚«–¼l","“uÎg—p‚‘¬‰»","“ÁêËŒ‚‹­‰»","“Å‘®«‹­‰»","“Å‘Ï«","“İŠíg‚¢","”[“p","”j‰ó‰¤","”‚¬æ‚è“Sl","”š”j‚â‚ç‚ê‘Ï«","”š”j‘®«‹­‰»","”²“py‹Zz","”²“py—Íz","”½“®ŒyŒ¸","”ò‚Ñ‚İ","•X‘®«UŒ‚‹­‰»","•X‘Ï«","•s‹ü","•—ˆ³‘Ï«","• Œ¸‚è‘Ï«","•Ç–ÊˆÚ“®","–A–—‚Ì•‘","–Cp","–C’e‘•“U","–hŒä","–ƒáƒ‘®«‹­‰»","–ƒáƒ‘Ï«","–‘«Š´","—z“®","—‹‘®«UŒ‚‹­‰»","—‹‘Ï«","—´‘®«UŒ‚‹­‰»","—´‘Ï«","—Í‚Ì‰ğ•ú","ŸÓg","ãÄå³g‚¢","’BlŒ|","NULL"
 
 
@@ -10,7 +25,7 @@
 	//M2 = 256 # 2‘w
 	//D = 128*22 # “ü—Í‘w
 	//K = 102
-	N=1100*200
+	N=28*13
 	mlpLayerNum=4
 	dim mlpLayerNode,mlpLayerNum
 	mlpLayerNode=128*22,512,256,102
@@ -22,26 +37,23 @@
 	noteload "GOSEKIcapture3Setting.txt"
 	noteget p1,1
 	HCLSetDevice int(p1)
+	HCLSetDevice 1
 
 	//Xì¬
 	newmod matX,CLMatrix,N,mlpLayerNode.0
-
 	buffer 1:picload "25.png"
-	ddim ansy,1100,200
-	w=0
-		repeat 1100
-		ccnt=cnt
-			repeat 200
-			buffer 2,128,22
-			pos 0,0
-			gcopy 1,40+ccnt,250+cnt,128,22
+	memG=int64(gselToBufferFloat1(1))
 
-			memG=int64(gselToBufferFloat1(2))
-			HCLCopyBuffer int64(CLMmem(matX)),memG,mlpLayerNode.0*4,mlpLayerNode.0*4*w,0
-			HCLReleaseBuffer memG
+	w=0
+	maxmemid=int64(CLMmem(matX))
+		repeat 13
+		ccnt=cnt
+			repeat 28
+			clmemgcopy maxmemid,memG,752+cnt,271+ccnt,w
 			w++
 			loop
 		loop
+	HCLReleaseBuffer memG
 	
 	gsel 0
 	wait 1
@@ -81,9 +93,9 @@
 	title "Œ‹‰Êˆ—’†"
 	wait 1
 	w=0
-		repeat 1100
+		repeat 13
 		ccnt=cnt
-			repeat 200
+			repeat 28
 
 			maxd=0.0
 			maxi=-1
@@ -94,20 +106,44 @@
 					maxi=cnt
 				}
 				loop
-			col=int(maxd*10000)
+			
+			col=int(FloatToDouble(result.(w*102+101))*10000)
 			col=col*255/10000
 			color col,col,col
-			pset ccnt+40,cnt+250
-
-
+			pset 752+cnt,271+ccnt
+			/*
 			buffer 2,128,22
 			pos 0,0
-			gcopy 1,40+ccnt,250+cnt,128,22
-			bmpsave "a\\"+SKLALLSTR.maxi+"\\b"+str(w)+".bmp"
+			gcopy 1,752+cnt,271+ccnt,128,22
+			bmpsave "b\\"+SKLALLSTR.maxi+"\\b"+str(w)+".bmp"
+			*/
 			w++
+			
+			gsel 0
 			loop
 		loop
-	end
+
+
+	
+	HCLdim_i32FromBuffer tst,maxmemid
+	w=0
+
+	repeat 28*13
+	cccnt=cnt
+		buffer 5,128,22
+		repeat 22
+		ccnt=cnt
+			repeat 128
+			col=FloatToDouble(tst.w)*255.0
+			col=int(col)
+			w++
+			color col,col,col
+			pset cnt,ccnt
+			loop
+		loop
+		bmpsave "aaaa"+cccnt+".bmp"
+	loop
+	stop
 
 
 *FNNmain
@@ -164,3 +200,13 @@
 		offsetread+=sz
 		loop
 	return
+
+#module
+#deffunc clmemgcopy var dst,var src,int x,int y,int ccnt
+	yy=720-22-y
+		repeat 22
+		HCLCopyBuffer dst,src,128*4,ccnt*128*22*4+cnt*128*4,((yy+cnt)*1280+x)*4
+		loop
+	return
+
+#global
