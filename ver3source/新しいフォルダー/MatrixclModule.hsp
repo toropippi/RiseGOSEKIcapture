@@ -17,7 +17,7 @@
 		ccmt=cnt
 			repeat lmx
 			pos cnt*79,ccmt*14
-			data=HCLReadIndex_i32(clmem,cnt+raw*ccmt)
+			data=HCLReadIndex_i32(clmem,cnt+col*ccmt)
 			mes strf("%3.5f",FloatToDouble(data))
 			loop
 		loop

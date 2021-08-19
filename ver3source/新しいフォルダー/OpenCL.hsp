@@ -1,6 +1,18 @@
 #include "hspcl64.as"
 #include "NNmodule.hsp"
 
+
+	//#N = 415676  # データの数
+	//M = 512 # 1層
+	//M2 = 256 # 2層
+	//D = 128*22 # 入力層
+	//K = 102
+	N=3
+	mlpLayerNum=4
+	dim mlpLayerNode,mlpLayerNum
+	mlpLayerNode=128*22,512,256,102
+
+	
 	//GPUデバイスせセット
 	HCLinit
 	sdim GOSEKIcapture3Setting,4096
@@ -8,15 +20,132 @@
 	noteload "GOSEKIcapture3Setting.txt"
 	noteget p1,1
 	HCLSetDevice int(p1)
-	prg=HCLCreateProgram("deeplearning.cl")//OpenCLのコードが書かれたファイル。コンパイルもここで
 
-
-	newmod matX,CLMatrix,128,22
+	//X作成
+	newmod matX,CLMatrix,N,mlpLayerNode.0
+	
+	buffer 1:picload "samp0.bmp"
+	gsel 0
+	memG=int64(gselToBufferFloat1(1))
+	HCLCopyBuffer int64(CLMmem(matX)),memG,mlpLayerNode.0*4,0,0
+	HCLReleaseBuffer memG
+	
+	buffer 1:picload "samp1.bmp"
+	gsel 0
+	memG=int64(gselToBufferFloat1(1))
+	HCLCopyBuffer int64(CLMmem(matX)),memG,mlpLayerNode.0*4,mlpLayerNode.0*4,0
+	HCLReleaseBuffer memG
+	
 	buffer 1:picload "sampl0.png"
 	gsel 0
-	gselToBufferFloat2 1,matX
-	CLMview(matX)
+	memG=int64(gselToBufferFloat1(1))
+	HCLCopyBuffer int64(CLMmem(matX)),memG,mlpLayerNode.0*4,mlpLayerNode.0*4*2,0
+	HCLReleaseBuffer memG
+
+
+	gosub*loadwv
+    //b = np.zeros((N, M),dtype=np.float32)  # 中間層ニューロンの入力総和
+    //z = np.zeros((N, M),dtype=np.float32)  # 中間層ニューロンの出力
+    //b2 = np.zeros((N, M2),dtype=np.float32)  # 中間層ニューロンの入力総和
+    //z2 = np.zeros((N, M2),dtype=np.float32)  # 中間層ニューロンの出力
+    //a = np.zeros((N, K),dtype=np.float32)  # 出力層ニューロンの入力総和
+    //y = np.zeros((N, K),dtype=np.float32)  # 出力層ニューロンの出力
+	//b,zを作る
+	//a,yはb,zの最後の要素に対応
+		repeat mlpLayerNum-1
+		newmod matB,CLMatrix,N,mlpLayerNode.(cnt+1)
+		newmod matZ,CLMatrix,N,mlpLayerNode.(cnt+1)
+		loop
+	//Batch normの出力変数
+		repeat mlpLayerNum-2
+		newmod matBNB,CLMatrix,N,mlpLayerNode.(cnt+1)
+		loop
+	//Batch norm計算クラス＝モジュール変数
+		repeat mlpLayerNum-2
+		newmod BN,BatchNormalization,mlpLayerNode.(cnt+1),cnt+1,"学習後\\"
+		loop
+
+	gosub*FNNmain
+
+	screen 0,640,480
+	pos 0,0
+	HCLdim_i32FromBuffer result,int64(CLMmem(matZ.(mlpLayerNum-2)))
+		repeat 102
+		mes int(FloatToDouble(result.cnt)*10000)
+		if ginfo_cy>472:pos ginfo_cx+50,0
+		loop
+	
+	screen 10,640,480
+	pos 0,0
+		repeat 102,102
+		mes int(FloatToDouble(result.cnt)*10000)
+		if ginfo_cy>472:pos ginfo_cx+50,0
+		loop
+	
+	screen 11,640,480
+	pos 0,0
+		repeat 102,102*2
+		mes int(FloatToDouble(result.cnt)*10000)
+		if ginfo_cy>472:pos ginfo_cx+50,0
+		loop
+	
 	stop
+
+
+*FNNmain
+	/*
+    b = np.dot(x, w.T)  # N*M
+    outb = bn1.forward(b, train_flg)
+    z = ReLU(outb)
+
+    b2 = np.dot(z, w2.T)  # N*M2
+    outb2 = bn2.forward(b2, train_flg)
+    z2 = ReLU(outb2)
+
+    a = np.dot(z2, v.T)  # N*K
+    amx = np.max(a, axis=1)
+    amx = (amx[:] > 30.0) * (amx[:]-30.0)
+    amx = amx.reshape((amx.shape[0], 1))
+    a = a - amx
+
+    expa = np.exp(a)
+    wkz = np.sum(expa,axis=1)
+    rwkz = 1.0 / wkz
+    for n in range(rwkz.shape[0]):
+        y[n,:] = expa[n,:] * rwkz[n]
+	*/
+	npdot matB.0,matX,matWV.0,0,0,0
+		repeat mlpLayerNum-2
+		//BNforwrd BNmodule変数,Matmodule変数in,Matmodule変数out,train_flg
+		BNforwrd BN.cnt,matB.cnt,matBNB.cnt,0
+		ReLU2 matZ.cnt,matBNB.cnt
+		npdot matB.(cnt+1),matZ.cnt,matWV.(cnt+1),0,0,0
+		loop
+	//ここでaが求まっている。matBの最後の要素に入っている
+	AToY matB.(mlpLayerNum-2),matZ.(mlpLayerNum-2)
+	return
+
+
+*loadwv
+	exist "学習後\\WV0.npy"
+	dim host_wv,strsize/4
+	bload "学習後\\WV0.npy",host_wv
+    //# wv を w と v に戻す
+    //w = wv[0:M * D] # 中間層ニューロンへの重み
+    //w = w.reshape(M, D)
+    //w2= wv[M * D:M * D + M2 * M] # 中間層ニューロンへの重み
+    //w2= w2.reshape(M2, M)
+    //v = wv[M * D + M2 * M:] # 出力層ニューロンへの重み
+    //v = v.reshape(K, M2)
+	offsetread=0
+		repeat mlpLayerNum-1
+		sz=mlpLayerNode.cnt*mlpLayerNode.(cnt+1)*4
+		newmod matWV,CLMatrix,mlpLayerNode.(cnt+1),mlpLayerNode.cnt
+		HCLWriteBuffer int64(CLMmem(matWV.cnt)),host_wv,sz,0,128+offsetread
+		transMat matWV.cnt
+		offsetread+=sz
+		loop
+	return
 
 
 
