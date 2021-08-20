@@ -25,7 +25,7 @@ cccnt=1
 	//M2 = 256 # 2層
 	//D = 128*22 # 入力層
 	//K = 102
-	N=28*13
+	N=7100*2
 	mlpLayerNum=4
 	dim mlpLayerNode,mlpLayerNum
 	mlpLayerNode=128*22,512,256,102
@@ -37,15 +37,18 @@ cccnt=1
 	noteload "GOSEKIcapture3Setting.txt"
 	noteget p1,1
 	HCLSetDevice int(p1)
-	HCLSetDevice 1
 
+	
 	//X作成
 	newmod matX,CLMatrix,N,mlpLayerNode.0
+	maxmemid=int64(CLMmem(matX))
+
+	gosub*kimeutiload
+	/*
 	buffer 1:picload "25.png"
 	memG=int64(gselToBufferFloat1(1))
 
 	w=0
-	maxmemid=int64(CLMmem(matX))
 		repeat 13
 		ccnt=cnt
 			repeat 28
@@ -54,6 +57,7 @@ cccnt=1
 			loop
 		loop
 	HCLReleaseBuffer memG
+*/
 	
 	gsel 0
 	wait 1
@@ -61,12 +65,6 @@ cccnt=1
 	wait 1
 	
 	gosub*loadwv
-    //b = np.zeros((N, M),dtype=np.float32)  # 中間層ニューロンの入力総和
-    //z = np.zeros((N, M),dtype=np.float32)  # 中間層ニューロンの出力
-    //b2 = np.zeros((N, M2),dtype=np.float32)  # 中間層ニューロンの入力総和
-    //z2 = np.zeros((N, M2),dtype=np.float32)  # 中間層ニューロンの出力
-    //a = np.zeros((N, K),dtype=np.float32)  # 出力層ニューロンの入力総和
-    //y = np.zeros((N, K),dtype=np.float32)  # 出力層ニューロンの出力
 	//b,zを作る
 	//a,yはb,zの最後の要素に対応
 		repeat mlpLayerNum-1
@@ -85,66 +83,30 @@ cccnt=1
 	gosub*FNNmain
 
 
-	HCLdim_i32FromBuffer result,int64(CLMmem(matZ.(mlpLayerNum-2)))
-	screen 0,1280,720
-	color 255,0,0:boxf
 
+	HCLdim_i32FromBuffer result,int64(CLMmem(matZ.(mlpLayerNum-2)))
 	gsel 0
 	title "結果処理中"
 	wait 1
-	w=0
-		repeat 13
-		ccnt=cnt
-			repeat 28
 
-			maxd=0.0
-			maxi=-1
-				repeat 102
-				sc=FloatToDouble(result.(w*102+cnt))
-				if maxd<sc{
-					maxd=sc
-					maxi=cnt
-				}
-				loop
-			
-			col=int(FloatToDouble(result.(w*102+101))*10000)
-			col=col*255/10000
-			color col,col,col
-			pset 752+cnt,271+ccnt
-			/*
-			buffer 2,128,22
-			pos 0,0
-			gcopy 1,752+cnt,271+ccnt,128,22
-			bmpsave "b\\"+SKLALLSTR.maxi+"\\b"+str(w)+".bmp"
-			*/
-			w++
-			
-			gsel 0
+	sdim outstr,65536*16
+		repeat N
+		w=cnt
+		maxd=0.0
+		maxi=-1
+			repeat 102
+			sc=FloatToDouble(result.(w*102+cnt))
+			if maxd<sc{
+				maxd=sc
+				maxi=cnt
+			}
 			loop
+		outstr+=SKLALLSTR.maxi+"\n"
 		loop
-
-
 	
-	HCLdim_i32FromBuffer tst,maxmemid
-	w=0
-
-	repeat 28*13
-	cccnt=cnt
-		buffer 5,128,22
-		repeat 22
-		ccnt=cnt
-			repeat 128
-			col=FloatToDouble(tst.w)*255.0
-			col=int(col)
-			w++
-			color col,col,col
-			pset cnt,ccnt
-			loop
-		loop
-		bmpsave "aaaa"+cccnt+".bmp"
-	loop
+	pos 0,0
+	mesbox outstr,630,470,5
 	stop
-
 
 *FNNmain
 	/*
@@ -200,6 +162,25 @@ cccnt=1
 		offsetread+=sz
 		loop
 	return
+
+
+
+//101-114決め打ちロード
+*kimeutiload
+	buffer 1
+		repeat N/2
+		picload "H:\\mhrchap\\113\\"+cnt+".png"
+		memG=int64(gselToBufferFloat1(1))
+		clmemgcopy maxmemid,memG,752+10,271+5,cnt*2
+		clmemgcopy maxmemid,memG,752+10,271+5+51,cnt*2+1
+		HCLReleaseBuffer memG
+		loop
+	
+	return
+
+
+
+
 
 #module
 #deffunc clmemgcopy var dst,var src,int x,int y,int ccnt
