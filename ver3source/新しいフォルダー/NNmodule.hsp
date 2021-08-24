@@ -1,9 +1,6 @@
 //MatrixModuleと抱き合わせで使う前提のモジュール
-#include "MatrixclModule.hsp"
-
 
 #module MatIOmodule
-
 #deffunc MatIOmodule_Init
 	if IMGprg==0{
 		IMGprg=HCLCreateProgramWithSource({"
@@ -20,6 +17,8 @@
 		krngselToBufferFloat=HCLCreateKernel(IMGprg,"gselToBufferFloat")
 	}
 	return
+
+
 //gselで指定した画面をrgbを1色にしてfloat型に、さらに0.0～1.0に色が収まるように
 //memidをstrで返す
 #defcfunc gselToBufferFloat1 int gid
@@ -36,36 +35,17 @@
 	return str(vout)
 
 
-//gselで指定した画面をrgbを1色にしてfloat型に、さらに0.0～1.0に色が収まるように
-//memidをmoduke型変数で入力する形式
-#deffunc gselToBufferFloat2 int gid,var A
-	int64memid=int64(CLMmem(A))
-	if IMGprg==0:MatIOmodule_Init
-	cg=ginfo(3)
-	gsel gid
-	mref i,66
-	vramchar3=HCLCreateBufferFrom(i)
-	if ginfo(12)*ginfo(13)!=CLMraw(A)*CLMcol(A){
-		dialog "サイズがあわないエラー",1
-		end
-	}
-	//vout=HCLCreateBuffer(ginfo(12)*ginfo(13)*4)//float型を想定
-	HCLSetkrns krngselToBufferFloat,vramchar3,int64memid
-	HCLDoKrn1_sub krngselToBufferFloat,ginfo(12)*ginfo(13),64
-	HCLReleaseBuffer vramchar3
-	gsel cg
-	return
-
-
 //name,memid,行,列
 #deffunc npsave str fname,var A
-	HCLdim_i32FromBuffer hostdata,int64(CLMmem(A))
+	HCLdim_i32FromBuffer hostdata,A
 	dim header,32
 	header.0=1297436307
 	header.1=88400
 	header.2=662372470
 	sdim saveout1,256
-	saveout1="descr': '<f4', 'fortran_order': False, 'shape': ("+CLMraw(A)+", "+CLMcol(A)+"), }"
+	raw=HCLBLAS_Get2DShape(A,0)
+	col=HCLBLAS_Get2DShape(A,1)
+	saveout1="descr': '<f4', 'fortran_order': False, 'shape': ("+raw+", "+col+"), }"
 		repeat 128-13
 		if strlen(saveout1)<128-13{
 			saveout1+=" "
@@ -75,15 +55,6 @@
 	poke header,127,10
 	bsave fname,header,128
 	bsave fname,hostdata,varsize(hostdata),128
-	return
-
-//ロードは最初から型サイズをあわせないといけない
-#deffunc npload str fname,var A
-	exist fname
-	sz=strsize-128
-	dim hostdata,strsize/4
-	bload fname,hostdata
-	HCLWriteBuffer int64(CLMmem(A)),hostdata,sz,0,128
 	return
 
 //ロードは最初からサイズをあわせないといけない
@@ -113,294 +84,8 @@
 
 
 
-
-
-
-
-
-
-
-
-
-
-#module MatMulmodule
-
-#deffunc MatMulmodule_Init
-	prgid=HCLCreateProgram("SGEMM.cl")
-	krnSGEMM_a=HCLCreateKernel(prgid,"SGEMM_a")
-	krnSGEMM_k=HCLCreateKernel(prgid,"SGEMM_k")
-	krnSGEMM_s=HCLCreateKernel(prgid,"SGEMM_small")
-	krn_Trans=HCLCreateKernel(prgid,"Trans")
-	return
-
-#deffunc transMat var A
-	if prgid==0:MatMulmodule_Init
-	r=CLMraw(A)
-	cc=CLMcol(A)
-	m=int64(CLMmem(A))
-	Admy0 = HCLCreateBuffer(r*cc*4)
-	HCLSetKrns krn_Trans,r,cc,m,Admy0
-	HCLDoKrn2 krn_Trans,(cc+15)/16*16,(r+15)/16*16,16,16
-	CLMswap_Write A,Admy0,cc,r
-	HCLReleaseBuffer m
-	return
-
-//arrayはarray.0=memid , array.1=行数 , array.2=列数
-//C=A*B 転置フラグつき
-//Cは最初からサイズが正しいもので生成されてないと行けない
-#deffunc npdot var C,var A,var B,int c_t,int a_t,int b_t
-	if prgid==0:MatMulmodule_Init
-	dim64 Cdmy,3
-	dim64 Admy,3
-	dim64 Bdmy,3
-	Cdmy.0=int64(CLMmem(C))
-	Cdmy.1=int64(CLMraw(C))
-	Cdmy.2=int64(CLMcol(C))
-	
-	aflag=0//最終的に転置するかフラグ
-	bflag=0
-	cflag=0
-	abswap=0//転置する前にa,b入れ替えするか
-
-	allbit=1*c_t+2*a_t+4*b_t
-
-	if allbit==1:cflag=1
-	if allbit==2:aflag=1
-	if allbit==3:aflag=1:abswap=1
-	if allbit==4:bflag=1
-	if allbit==5:bflag=1:abswap=1
-	if allbit==6:cflag=1:abswap=1
-	if allbit==7:abswap=1
-	
-	if abswap==1{
-		Admy.0=int64(CLMmem(B))
-		Admy.1=int64(CLMraw(B))
-		Admy.2=int64(CLMcol(B))		
-		Bdmy.0=int64(CLMmem(A))
-		Bdmy.1=int64(CLMraw(A))
-		Bdmy.2=int64(CLMcol(A))
-	}else{
-		Admy.0=int64(CLMmem(A))
-		Admy.1=int64(CLMraw(A))
-		Admy.2=int64(CLMcol(A))		
-		Bdmy.0=int64(CLMmem(B))
-		Bdmy.1=int64(CLMraw(B))
-		Bdmy.2=int64(CLMcol(B))
-	}
-
-	
-	if aflag==1{
-		srca=Admy.0
-		Admy.0 = HCLCreateBuffer(Admy.1*Admy.2*4)
-		HCLSetKrns krn_Trans,int(Admy.1),int(Admy.2),srca,Admy.0
-		HCLDoKrn2 krn_Trans,(int(Admy.2)+15)/16*16,(int(Admy.1)+15)/16*16,16,16
-		tmp=Admy.1
-		Admy.1=Admy.2
-		Admy.2=tmp
-	}
-	
-	if bflag==1{
-		srcb=Bdmy.0
-		Bdmy.0 = HCLCreateBuffer(Bdmy.1*Bdmy.2*4)
-		HCLSetKrns krn_trans,int(Bdmy.1),int(Bdmy.2),srcb,Bdmy.0
-		HCLDoKrn2 krn_trans,(int(Bdmy.2)+15)/16*16,(int(Bdmy.1)+15)/16*16,16,16
-		tmp=Bdmy.1
-		Bdmy.1=Bdmy.2
-		Bdmy.2=tmp
-	}
-
-	if Admy.2!=Bdmy.1:dialog "縦横サイズエラー：行列積できません":end
-	
-	if cflag==1{
-		Cdmy.1=Bdmy.2
-		Cdmy.2=Admy.1
-		Cdmy.0 = HCLCreateBuffer(Cdmy.1*Cdmy.2*4)
-	}else{
-		Cdmy.1=Admy.1
-		Cdmy.2=Bdmy.2
-	}
-
-	GEMM Cdmy,Admy,Bdmy
-
-	if cflag==1{
-		HCLSetKrns krn_trans,int(Cdmy.1),int(Cdmy.2),Cdmy.0,int64(CLMmem(C))
-		HCLDoKrn2 krn_trans,(int(Cdmy.2)+15)/16*16,(int(Cdmy.1)+15)/16*16,16,16
-	}
-
-	if aflag!=0:HCLReleaseBuffer Admy.0
-	if bflag!=0:HCLReleaseBuffer Bdmy.0
-	if cflag!=0:HCLReleaseBuffer Cdmy.0
-	return
-
-
-//arrayはarray.0=memid , array.1=行数 , array.2=列数
-//C=A*B 転置フラグつき
-//Cは内部の情報が一旦全部消されて再生成される
-#deffunc npdot_newC var C,var A,var B,int c_t,int a_t,int b_t
-	if prgid==0:MatMulmodule_Init
-	dim64 Cdmy,3
-	dim64 Admy,3
-	dim64 Bdmy,3
-	Cdmy.0=int64(CLMmem(C))
-	Cdmy.1=int64(CLMraw(C))
-	Cdmy.2=int64(CLMcol(C))
-	HCLReleaseBuffer Cdmy.0
-	
-	aflag=0//最終的に転置するかフラグ
-	bflag=0
-	cflag=0
-	abswap=0//転置する前にa,b入れ替えするか
-
-	allbit=1*c_t+2*a_t+4*b_t
-
-	if allbit==1:cflag=1
-	if allbit==2:aflag=1
-	if allbit==3:aflag=1:abswap=1
-	if allbit==4:bflag=1
-	if allbit==5:bflag=1:abswap=1
-	if allbit==6:cflag=1:abswap=1
-	if allbit==7:abswap=1
-	
-	if abswap==1{
-		Admy.0=int64(CLMmem(B))
-		Admy.1=int64(CLMraw(B))
-		Admy.2=int64(CLMcol(B))		
-		Bdmy.0=int64(CLMmem(A))
-		Bdmy.1=int64(CLMraw(A))
-		Bdmy.2=int64(CLMcol(A))
-	}else{
-		Admy.0=int64(CLMmem(A))
-		Admy.1=int64(CLMraw(A))
-		Admy.2=int64(CLMcol(A))		
-		Bdmy.0=int64(CLMmem(B))
-		Bdmy.1=int64(CLMraw(B))
-		Bdmy.2=int64(CLMcol(B))
-	}
-
-	
-	if aflag==1{
-		srca=Admy.0
-		Admy.0 = HCLCreateBuffer(Admy.1*Admy.2*4)
-		HCLSetKrns krn_Trans,int(Admy.1),int(Admy.2),srca,Admy.0
-		HCLDoKrn2 krn_Trans,(int(Admy.2)+15)/16*16,(int(Admy.1)+15)/16*16,16,16
-		tmp=Admy.1
-		Admy.1=Admy.2
-		Admy.2=tmp
-	}
-	
-	if bflag==1{
-		srcb=Bdmy.0
-		Bdmy.0 = HCLCreateBuffer(Bdmy.1*Bdmy.2*4)
-		HCLSetKrns krn_trans,int(Bdmy.1),int(Bdmy.2),srcb,Bdmy.0
-		HCLDoKrn2 krn_trans,(int(Bdmy.2)+15)/16*16,(int(Bdmy.1)+15)/16*16,16,16
-		tmp=Bdmy.1
-		Bdmy.1=Bdmy.2
-		Bdmy.2=tmp
-	}
-
-	if Admy.2!=Bdmy.1:dialog "縦横サイズエラー：行列積できません":end
-	
-	if cflag==1{
-		Cdmy.1=Bdmy.2
-		Cdmy.2=Admy.1
-		Cdmy.0 = HCLCreateBuffer(Cdmy.1*Cdmy.2*4)
-	}else{
-		Cdmy.1=Admy.1
-		Cdmy.2=Bdmy.2
-		Cdmy.0 = HCLCreateBuffer(Cdmy.1*Cdmy.2*4)
-	}
-
-	GEMM Cdmy,Admy,Bdmy
-
-	if cflag==1{
-		resC=HCLCreateBuffer(Cdmy.1*Cdmy.2*4)
-		HCLSetKrns krn_trans,int(Cdmy.1),int(Cdmy.2),Cdmy.0,resC
-		HCLDoKrn2 krn_trans,(int(Cdmy.2)+15)/16*16,(int(Cdmy.1)+15)/16*16,16,16
-		HCLReleaseBuffer Cdmy.0
-		Cdmy.0=resC
-	}
-
-	if aflag!=0:HCLReleaseBuffer Admy.0
-	if bflag!=0:HCLReleaseBuffer Bdmy.0
-
-	CLMswap_Write C,Cdmy.0,int(Cdmy.1),int(Cdmy.2)
-	return
-
-
-//C=A*Bをやるだけ
-#deffunc GEMM array C,array A,array B
-	m=int(A.1)
-	k=int(A.2)
-	n=int(B.2)
-	if ((n < 128) | (m < 128)){
-	    kernel = krnSGEMM_s
-	}else{
-	    if (k \ 16 == 0){
-	        kernel = krnSGEMM_k
-	    }else{
-	        kernel = krnSGEMM_a
-	    }
-	}
-	//引数をセット
-	HCLSetKrns kernel,m,n,k,A,B,C
-	HCLDokrn2 kernel,(n + 127) / 128 * 16, (m + 127) / 128 * 16,16,16
-	return
-#global
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//ReLUとか
 #module NNpartsmodule
-
 #deffunc NNpartsmodule_Init
-	if prgrelu==0{
-		prgrelu=HCLCreateProgramWithSource({"
-		__kernel void ReLU1(__global float *buf) 
-		{
-			uint id = get_global_id(0);
-			if (buf[id]<0.0)
-				buf[id]=0.0;
-		}
-		
-		__kernel void ReLU2(__global float *bufA,__global float *bufB) 
-		{
-			uint id = get_global_id(0);
-			if (bufB[id]<=0.0){
-				bufA[id]=0.0;
-			}else{
-				bufA[id]=bufB[id];
-			}
-		}
-		
-		"})
-		krnrelu1=HCLCreateKernel(prgrelu,"ReLU1")
-		krnrelu2=HCLCreateKernel(prgrelu,"ReLU2")
-	}
 	
 	if prgAtoY==0{
 		prgAtoY=HCLCreateProgramWithSource({"
@@ -450,34 +135,23 @@
 	}
 	return
 
-//入力matに対しReLU実行上書き保存
-#deffunc ReLU1 var A
-	if prgrelu==0:NNpartsmodule_Init
-	HCLSetkrns krnrelu1,int64(CLMmem(A))
-	HCLDoKrn1_sub krnrelu1,CLMraw(A)*CLMcol(A),64
-	return
-
-//入力matに対しReLU実行、out用変数に格納。B→A
-#deffunc ReLU2 var A, var B
-	if prgrelu==0:NNpartsmodule_Init
-	HCLSetkrns krnrelu2,int64(CLMmem(A)),int64(CLMmem(B))
-	HCLDoKrn1_sub krnrelu2,CLMraw(A)*CLMcol(A),64
-	return
-
 //aをもとにyを計算する
 #deffunc AToY var A, var Y
 	if prgAtoY==0:NNpartsmodule_Init
-	rawnum=CLMraw(A)
-	colnum=CLMcol(A)
-	sz=rawnum*colnum
+
+	rawnum=int(HCLBLAS_Get2DShape(A,0))
+	colnum=int(HCLBLAS_Get2DShape(A,1))
+	
+	sz=int(rawnum*colnum)
 	maxvram=HCLCreateBuffer(rawnum*4)
 	sumexpvram=HCLCreateBuffer(rawnum*4)
-	HCLFillBuffer_i32 maxvram,DoubleToFloat(0.0)//0.0うめ
-	HCLFillBuffer_i32 sumexpvram,DoubleToFloat(0.0)//0.0うめ
 	
-	HCLSetkrns krnAtoY1,int64(CLMmem(A)),colnum,maxvram
-	HCLSetkrns krnAtoY2,int64(CLMmem(A)),int64(CLMmem(Y)),colnum,maxvram,sumexpvram
-	HCLSetkrns krnAtoY3,int64(CLMmem(Y)),colnum,sumexpvram
+	HCLFillBuffer maxvram,float(0.0)//0.0うめ
+	HCLFillBuffer sumexpvram,float(0.0)//0.0うめ
+	
+	HCLSetkrns krnAtoY1,A,colnum,maxvram
+	HCLSetkrns krnAtoY2,A,Y,colnum,maxvram,sumexpvram
+	HCLSetkrns krnAtoY3,Y,colnum,sumexpvram
 
 	HCLDoKrn1_sub krnAtoY1,sz,64
 	HCLDoKrn1_sub krnAtoY2,sz,64
@@ -506,22 +180,7 @@
 
 
 #module BatchNormalization gamma,beta,momentum,running_mean,running_var,batch_size,xc,std,dgamma,dbeta,prg,krn1,shape1
-/*
-        self.gamma = gamma  # 標準偏差
-        self.beta = beta  # 平均
-        self.momentum = momentum  # 減衰率
 
-        # テスト時に使用する統計量
-        self.running_mean = running_mean  # 平均
-        self.running_var = running_var  # 分散
-
-        # 逆伝播時に使用する統計量
-        self.batch_size = None  # データ数
-        self.xc = None  # 偏差
-        self.std = None  # 標準偏差
-        self.dgamma = None  # (再変換用の)標準偏差の微分
-        self.dbeta = None  # (再変換用の)平均の微分
-*/
 #modterm
 	HCLReleaseBuffer gamma
 	HCLReleaseBuffer beta
@@ -579,7 +238,6 @@
 			//# 再変換
 			//out = self.gamma * xn + self.beta  # 式(6.8)
 		*/
-		
 	}else{  //# テスト時
 		/*
             xc = x - self.running_mean
@@ -587,8 +245,10 @@
 			//# 再変換
 			//out = self.gamma * xn + self.beta  # 式(6.8)
 		*/
-		HCLSetkrns krn1,int64(CLMmem(Matmin)),int64(CLMmem(Matmout))
-		HCLDokrn1_sub krn1,CLMraw(Matmin)*CLMcol(Matmin),64
+		rawnum=HCLBLAS_Get2DShape(Matmin,0)
+		colnum=HCLBLAS_Get2DShape(Matmin,1)
+		HCLSetkrns krn1,Matmin,Matmout
+		HCLDokrn1_sub krn1,int(rawnum*colnum),64
 	}
 	return
 
