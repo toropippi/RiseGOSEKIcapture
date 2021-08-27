@@ -9,8 +9,9 @@
 	//M2 = 256 # 2層
 	//D = 128*22 # 入力層
 	//K = 102
-
-	N=30*2//7100*2
+	alpha=0.3
+	
+	N=128*2//7100*2
 	mlpLayerNum=4
 	dim mlpLayerNode,mlpLayerNum
 	mlpLayerNode=128*22,512,256,102
@@ -22,21 +23,28 @@
 	noteload "GOSEKIcapture3Setting.txt"
 	noteget p1,1
 	HCLSetDevice int(p1)
-
+	
 	
 	//X作成
 	matX=HCLCreateBuffer(N*mlpLayerNode.0*4)
 	HCLBLAS_Set2DShape matX,N,mlpLayerNode.0
-
+	HCLIncRefcntCLBufferId matX
 	gosub*kimeutiload
+	HCLBLAS_Set2DShape matX,N,mlpLayerNode.0
+	//npsave "matX.npy",matX
 	
-	gsel 0
-	wait 1
-	title "ロード終わり"
-	wait 1
-
+	//T作成ロード
+	matT=HCLCreateBuffer(N*mlpLayerNode.(mlpLayerNum-1)*4)
+	gosub*kimeutiloadT//dim h_ansT,Nに結果がはいる
+	HCLFillBuffer matT,float(0)
+	HCLDoXi "F0[A[i]+i*102]=1.0;",HCLCreateBufferFrom(h_ansT),matT
+	HCLIncRefcntCLBufferId matT
+	HCLBLAS_Set2DShape matT,N,mlpLayerNode.(mlpLayerNum-1)
+	npsave "matT.npy",matT
 	
+	//WV作成ロード
 	gosub*loadwv
+	
 	//b,zを作る
 	//a,yはb,zの最後の要素に対応
 	dim64 matB,mlpLayerNum-1
@@ -58,8 +66,11 @@
 		repeat mlpLayerNum-2
 		newmod BN,BatchNormalization,mlpLayerNode.(cnt+1),cnt+1,"学習後\\"
 		loop
-
+	
 	gosub*FNNmain
+	gosub*CE_FFN
+	gosub*dCE_FNN
+
 
 
 
@@ -89,17 +100,78 @@
 	stop
 
 
+
+
+
+
+
+
+
+
+
+
 *FNNmain
 	HCLBLAS_sgemm matB.0,matX.0,matWV.0
-	
 		repeat mlpLayerNum-2
-		BNforwrd BN.cnt,matB.cnt,matBNB.cnt,0
+		BNforwrd BN.cnt,matB.cnt,matBNB.cnt,1
 		HCLDoXf "A[i]=max(B[i],0.0f);",matZ.cnt,matBNB.cnt
 		HCLBLAS_sgemm matB.(cnt+1),matZ.cnt,matWV.(cnt+1)
 		loop
-	
 	AToY matB.(mlpLayerNum-2),matZ.(mlpLayerNum-2)
+	//matZがyに相当
+	//matBがaに相当
 	return
+
+*CE_FFN
+	nplgy=HCLDoXf("float x=A[i];if (x<=0.0)x=0.0000000000001;OUT[i]=-log(x)/256;",matZ.(mlpLayerNum-2))
+	ce=HCLBLAS_sdot(nplgy,matT)
+	return
+
+//この中でalpha補正もする
+*dCE_FNN
+	delta2 = HCLDoXf("OUT[i]=A[i]-B[i];",matZ.(mlpLayerNum-2),matT)
+	raw_ = HCLBLAS_Get2DShape(matZ.(mlpLayerNum-2),0)
+	col_ = HCLBLAS_Get2DShape(matZ.(mlpLayerNum-2),1)
+	HCLBLAS_Set2DShape delta2,raw_,col_
+	
+	delta12_1 = HCLBLAS_sgemm(delta2, matWV.2 ,0,0,1)
+	delta12_2 = HCLDoXf("OUT[i]=A[i]*(B[i]>0.0);",delta12_1,matBNB.1)
+	raw_ = HCLBLAS_Get2DShape(delta12_1,0)
+	col_ = HCLBLAS_Get2DShape(delta12_1,1)
+	HCLBLAS_Set2DShape delta12_2,raw_,col_
+	delta12_3 = int64(BNbackward(BN.1,delta12_2))
+	HCLBLAS_Set2DShape delta12_3,raw_,col_
+
+	delta1_1 = HCLBLAS_sgemm(delta12_3,matWV.1 ,0,0,1)
+	delta1_2 = HCLDoXf("OUT[i]=A[i]*(B[i]>0.0);",delta1_1,matBNB.0)
+	raw_ = HCLBLAS_Get2DShape(delta1_1,0)
+	col_ = HCLBLAS_Get2DShape(delta1_1,1)
+	HCLBLAS_Set2DShape delta1_2,raw_,col_
+	delta1_3 = int64(BNbackward(BN.0,delta1_2))
+	HCLBLAS_Set2DShape delta1_3,raw_,col_
+
+	dv=HCLBLAS_sgemm(delta2,matZ.1 ,1,1,0)//割るN
+	dw2=HCLBLAS_sgemm(delta12_3,matZ.0 ,1,1,0)//割るN
+	dw=HCLBLAS_sgemm(delta1_3,matX ,1,1,0)//割るN
+
+	HCLDoXf "A[i]-=a*B[i]/256;",matWV.0,dw ,float(alpha)
+	HCLDoXf "A[i]-=a*B[i]/256;",matWV.1,dw2,float(alpha)
+	HCLDoXf "A[i]-=a*B[i]/256;",matWV.2,dv ,float(alpha)
+
+	screen 2,640,480
+	mes HCLReadIndex_fp(matWV.0,0)
+	mes HCLReadIndex_fp(matWV.0,209)
+	mes HCLReadIndex_fp(matWV.1,0)
+	mes HCLReadIndex_fp(matWV.1,209)
+	mes HCLReadIndex_fp(matWV.2,0)
+	mes HCLReadIndex_fp(matWV.2,209)
+	stop
+	BNmodyf BN.1,alpha
+	BNmodyf BN.0,alpha
+	return
+
+
+
 
 
 *loadwv
@@ -116,8 +188,13 @@
 		HCLBLAS_Set2DShape matWV.cnt,mlpLayerNode.(cnt+1),mlpLayerNode.cnt
 		matWV.cnt=HCLBLAS_sT(matWV.cnt)
 		offsetread+=sz
+		HCLIncRefcntCLBufferId matWV.cnt
 		loop
+	
 	return
+
+
+
 
 
 //101-114決め打ちロード
@@ -133,7 +210,36 @@
 	
 	return
 
+//101-114決め打ちロード
+*kimeutiloadT
+	dim h_ansT,N
+	exist "H:\\mhrchap\\113GOSEKICUIout.txt"
+	sdim ansdatastr,strsize
+	notesel ansdatastr
+	noteload "H:\\mhrchap\\113GOSEKICUIout.txt"
+	
+		repeat N/2
+		noteget p1,cnt
+		split p1,",",arr
 
+		ccnt=cnt*2
+		h_ansT.ccnt=101
+			repeat 101
+			if SKLALLSTR.cnt==arr.0{
+				h_ansT.ccnt=cnt
+				break
+			}
+			loop
+		ccnt++
+		h_ansT.ccnt=101
+			repeat 101
+			if SKLALLSTR.cnt==arr.2{
+				h_ansT.ccnt=cnt
+				break
+			}
+			loop
+		loop
+	return
 
 #module
 #deffunc clmemgcopy var dst,var src,int x,int y,int ccnt

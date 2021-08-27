@@ -4,14 +4,14 @@
 
 	SKLALLSTR="‚j‚np","ƒAƒCƒeƒ€g—p‹­‰»","ƒK[ƒh‹­‰»","ƒK[ƒh«”\","ƒLƒmƒR‘åD‚«","ƒWƒƒƒ“ƒv“Sl","ƒXƒ^ƒ~ƒi‹}‘¬‰ñ•œ","ƒXƒ^ƒ~ƒi’Dæ","‚Ğ‚é‚İŒyŒ¸","ƒtƒ‹ƒ`ƒƒ[ƒW","ƒuƒŒ—}§","ƒ{ƒ}[","ƒ‰ƒ“ƒi[","‰Î–ê—Í","‰Î‘®«UŒ‚‹­‰»","‰Î‘Ï«","‰ïSŒ‚y‘®«z","‰ñ”ğ‹——£‚t‚o","‰ñ”ğ«”\","‰ñ•œ‘¬“x","ŠŠ‘–‹­‰»","ŠÑ’Ê’eEŠÑ’Ê–î‹­‰»","‹Câ‘Ï«","‹S‰Î“Z","‹t¦‚İ","‹tP","‹­‰»‘±","‹Æ•¨","Œ©Ø‚è","K‰^","Lˆæ‰»","U‚ß‚Ìç¨","UŒ‚","‚‘¬•ÏŒ`","„nŒ¤–","U’eEŠgU–î‹­‰»","€’†‚ÉŠˆ","¨ğ","ã“_“ÁŒø","W’†"," ","æ‚è–¼l","A¶Šw","SŠá","…‘®«UŒ‚‹­‰»","…‘Ï«","‡–°‘®«‹­‰»","‡–°‘Ï«","¸—ì‚Ì‰ÁŒì","‘H‚¢","‘•“UŠg’£","‘•“U‘¬“x","‘¬Ë‹­‰»","‘®«‚â‚ç‚ê‘Ï«","‘Ìp","‘Ì—Í‰ñ•œ—Ê‚t‚o","‘Ïk","’eŠÛß–ñ","’e“±‹­‰»","’n¿Šw","’§íÒ","’´‰ïS","’Êí’eE˜AË–î‹­‰»","“Dá‘Ï«","“J‚«–¼l","“uÎg—p‚‘¬‰»","“ÁêËŒ‚‹­‰»","“Å‘®«‹­‰»","“Å‘Ï«","“İŠíg‚¢","”[“p","”j‰ó‰¤","”‚¬æ‚è“Sl","”š”j‚â‚ç‚ê‘Ï«","”š”j‘®«‹­‰»","”²“py‹Zz","”²“py—Íz","”½“®ŒyŒ¸","”ò‚Ñ‚İ","•X‘®«UŒ‚‹­‰»","•X‘Ï«","•s‹ü","•—ˆ³‘Ï«","• Œ¸‚è‘Ï«","•Ç–ÊˆÚ“®","–A–—‚Ì•‘","–Cp","–C’e‘•“U","–hŒä","–ƒáƒ‘®«‹­‰»","–ƒáƒ‘Ï«","–‘«Š´","—z“®","—‹‘®«UŒ‚‹­‰»","—‹‘Ï«","—´‘®«UŒ‚‹­‰»","—´‘Ï«","—Í‚Ì‰ğ•ú","ŸÓg","ãÄå³g‚¢","’BlŒ|","NULL"
 
-
 	//#N = 415676  # ƒf[ƒ^‚Ì”
 	//M = 512 # 1‘w
 	//M2 = 256 # 2‘w
 	//D = 128*22 # “ü—Í‘w
 	//K = 102
-
-	N=30*2//7100*2
+	alpha=0.3
+	
+	N=128*2//7100*2
 	mlpLayerNum=4
 	dim mlpLayerNode,mlpLayerNum
 	mlpLayerNode=128*22,512,256,102
@@ -23,20 +23,28 @@
 	noteload "GOSEKIcapture3Setting.txt"
 	noteget p1,1
 	HCLSetDevice int(p1)
-
+	
 	
 	//Xì¬
 	matX=HCLCreateBuffer(N*mlpLayerNode.0*4)
 	HCLBLAS_Set2DShape matX,N,mlpLayerNode.0
-
+	HCLIncRefcntCLBufferId matX
 	gosub*kimeutiload
+	HCLBLAS_Set2DShape matX,N,mlpLayerNode.0
+	//npsave "matX.npy",matX
 	
-	gsel 0
-	wait 1
-	title "ƒ[ƒhI‚í‚è"
-	wait 1
+	//Tì¬ƒ[ƒh
+	matT=HCLCreateBuffer(N*mlpLayerNode.(mlpLayerNum-1)*4)
+	gosub*kimeutiloadT//dim h_ansT,N‚ÉŒ‹‰Ê‚ª‚Í‚¢‚é
+	HCLFillBuffer matT,float(0)
+	HCLDoXi "F0[A[i]+i*102]=1.0;",HCLCreateBufferFrom(h_ansT),matT
+	HCLIncRefcntCLBufferId matT
+	HCLBLAS_Set2DShape matT,N,mlpLayerNode.(mlpLayerNum-1)
+	npsave "matT.npy",matT
 	
+	//WVì¬ƒ[ƒh
 	gosub*loadwv
+	
 	//b,z‚ğì‚é
 	//a,y‚Íb,z‚ÌÅŒã‚Ì—v‘f‚É‘Î‰
 	dim64 matB,mlpLayerNum-1
@@ -58,8 +66,11 @@
 		repeat mlpLayerNum-2
 		newmod BN,BatchNormalization,mlpLayerNode.(cnt+1),cnt+1,"ŠwKŒã\\"
 		loop
-
+	
 	gosub*FNNmain
+	gosub*CE_FFN
+	gosub*dCE_FNN
+
 
 
 
@@ -89,17 +100,78 @@
 	stop
 
 
+
+
+
+
+
+
+
+
+
+
 *FNNmain
 	HCLBLAS_sgemm matB.0,matX.0,matWV.0
-	
 		repeat mlpLayerNum-2
-		BNforwrd BN.cnt,matB.cnt,matBNB.cnt,0
+		BNforwrd BN.cnt,matB.cnt,matBNB.cnt,1
 		HCLDoXf "A[i]=max(B[i],0.0f);",matZ.cnt,matBNB.cnt
 		HCLBLAS_sgemm matB.(cnt+1),matZ.cnt,matWV.(cnt+1)
 		loop
-	
 	AToY matB.(mlpLayerNum-2),matZ.(mlpLayerNum-2)
+	//matZ‚ªy‚É‘Š“–
+	//matB‚ªa‚É‘Š“–
 	return
+
+*CE_FFN
+	nplgy=HCLDoXf("float x=A[i];if (x<=0.0)x=0.0000000000001;OUT[i]=-log(x)/256;",matZ.(mlpLayerNum-2))
+	ce=HCLBLAS_sdot(nplgy,matT)
+	return
+
+//‚±‚Ì’†‚Åalpha•â³‚à‚·‚é
+*dCE_FNN
+	delta2 = HCLDoXf("OUT[i]=A[i]-B[i];",matZ.(mlpLayerNum-2),matT)
+	raw_ = HCLBLAS_Get2DShape(matZ.(mlpLayerNum-2),0)
+	col_ = HCLBLAS_Get2DShape(matZ.(mlpLayerNum-2),1)
+	HCLBLAS_Set2DShape delta2,raw_,col_
+	
+	delta12_1 = HCLBLAS_sgemm(delta2, matWV.2 ,0,0,1)
+	delta12_2 = HCLDoXf("OUT[i]=A[i]*(B[i]>0.0);",delta12_1,matBNB.1)
+	raw_ = HCLBLAS_Get2DShape(delta12_1,0)
+	col_ = HCLBLAS_Get2DShape(delta12_1,1)
+	HCLBLAS_Set2DShape delta12_2,raw_,col_
+	delta12_3 = int64(BNbackward(BN.1,delta12_2))
+	HCLBLAS_Set2DShape delta12_3,raw_,col_
+
+	delta1_1 = HCLBLAS_sgemm(delta12_3,matWV.1 ,0,0,1)
+	delta1_2 = HCLDoXf("OUT[i]=A[i]*(B[i]>0.0);",delta1_1,matBNB.0)
+	raw_ = HCLBLAS_Get2DShape(delta1_1,0)
+	col_ = HCLBLAS_Get2DShape(delta1_1,1)
+	HCLBLAS_Set2DShape delta1_2,raw_,col_
+	delta1_3 = int64(BNbackward(BN.0,delta1_2))
+	HCLBLAS_Set2DShape delta1_3,raw_,col_
+
+	dv=HCLBLAS_sgemm(delta2,matZ.1 ,1,1,0)//Š„‚éN
+	dw2=HCLBLAS_sgemm(delta12_3,matZ.0 ,1,1,0)//Š„‚éN
+	dw=HCLBLAS_sgemm(delta1_3,matX ,1,1,0)//Š„‚éN
+
+	HCLDoXf "A[i]-=a*B[i]/256;",matWV.0,dw ,float(alpha)
+	HCLDoXf "A[i]-=a*B[i]/256;",matWV.1,dw2,float(alpha)
+	HCLDoXf "A[i]-=a*B[i]/256;",matWV.2,dv ,float(alpha)
+
+	screen 2,640,480
+	mes HCLReadIndex_fp(matWV.0,0)
+	mes HCLReadIndex_fp(matWV.0,209)
+	mes HCLReadIndex_fp(matWV.1,0)
+	mes HCLReadIndex_fp(matWV.1,209)
+	mes HCLReadIndex_fp(matWV.2,0)
+	mes HCLReadIndex_fp(matWV.2,209)
+	stop
+	BNmodyf BN.1,alpha
+	BNmodyf BN.0,alpha
+	return
+
+
+
 
 
 *loadwv
@@ -116,8 +188,13 @@
 		HCLBLAS_Set2DShape matWV.cnt,mlpLayerNode.(cnt+1),mlpLayerNode.cnt
 		matWV.cnt=HCLBLAS_sT(matWV.cnt)
 		offsetread+=sz
+		HCLIncRefcntCLBufferId matWV.cnt
 		loop
+	
 	return
+
+
+
 
 
 //101-114Œˆ‚ß‘Å‚¿ƒ[ƒh
@@ -133,7 +210,36 @@
 	
 	return
 
+//101-114Œˆ‚ß‘Å‚¿ƒ[ƒh
+*kimeutiloadT
+	dim h_ansT,N
+	exist "H:\\mhrchap\\113GOSEKICUIout.txt"
+	sdim ansdatastr,strsize
+	notesel ansdatastr
+	noteload "H:\\mhrchap\\113GOSEKICUIout.txt"
+	
+		repeat N/2
+		noteget p1,cnt
+		split p1,",",arr
 
+		ccnt=cnt*2
+		h_ansT.ccnt=101
+			repeat 101
+			if SKLALLSTR.cnt==arr.0{
+				h_ansT.ccnt=cnt
+				break
+			}
+			loop
+		ccnt++
+		h_ansT.ccnt=101
+			repeat 101
+			if SKLALLSTR.cnt==arr.2{
+				h_ansT.ccnt=cnt
+				break
+			}
+			loop
+		loop
+	return
 
 #module
 #deffunc clmemgcopy var dst,var src,int x,int y,int ccnt

@@ -162,46 +162,93 @@ np.save("T_test",T_test)
 exit(0)
 """
 
-for iii in range(1867):
-    zdata = np.load("H:\\mhrchap\\triming3\\{0}.npz".format(iii))
-    X = zdata["x"]
-    X = np.float32(X[:, :] / 255.0)
-    N = X.shape[0]
-    T = np.zeros((N, K), dtype=np.float32)
-    zt = zdata["t"]
-    for i in range(N):
-        T[i, zt[i]] = np.float32(1.0)
-    X_train, X_test, T_train, T_test = XtoXtrain_Xtest2(X, T)
-    # メイン ---------------------------
-    #WV_init = mlp.CreateWV(D,M,M2,K)
-    bn1 = mlp.BatchNormalization(gamma=1, beta=0)
-    bn2 = mlp.BatchNormalization(gamma=1, beta=0)
-    WV_init = defload(bn1, bn2)
-    WV, Err_train, Err_test, bn1, bn2 = mlp.Fit_FNN(WV_init, M, M2, K, X_train, T_train, X_test, T_test, 0.005996, bn1, bn2)
-    if iii % 6 == 5:
-        y, _, _, _, _, _, _, _ = mlp.FNN(WV, M, M2, K, X_test, bn1, bn2, False)
-        anst, ansf = Seitoritu(T_test, y)
-        print(anst, ansf)
-        print("正答率{0}".format(anst / (anst + ansf)))
-        if Err_test < 0.0062:
-            np.save("WV0", WV)
-            np.save("bn1_gamma", bn1.gamma)
-            np.save("bn1_beta", bn1.beta)
-            np.save("bn1_momentum", bn1.momentum)
-            np.save("bn1_running_mean", bn1.running_mean)
-            np.save("bn1_running_var", bn1.running_var)
-            np.save("bn1_batch_size", bn1.batch_size)
-            np.save("bn1_xc", bn1.xc)
-            np.save("bn1_std", bn1.std)
-            np.save("bn1_dgamma", bn1.dgamma)
-            np.save("bn1_dbeta", bn1.dbeta)
-            np.save("bn2_gamma", bn2.gamma)
-            np.save("bn2_beta", bn2.beta)
-            np.save("bn2_momentum", bn2.momentum)
-            np.save("bn2_running_mean", bn2.running_mean)
-            np.save("bn2_running_var", bn2.running_var)
-            np.save("bn2_batch_size", bn2.batch_size)
-            np.save("bn2_xc", bn2.xc)
-            np.save("bn2_std", bn2.std)
-            np.save("bn2_dgamma", bn2.dgamma)
-            np.save("bn2_dbeta", bn2.dbeta)
+
+X = np.load("C:\\Users\\9920x\\Documents\\GitHub\\RiseGOSEKIcapture\\ver3source\\新しいフォルダー\\matX.npy")
+T = np.load("C:\\Users\\9920x\\Documents\\GitHub\\RiseGOSEKIcapture\\ver3source\\新しいフォルダー\\matT.npy")
+N = X.shape[0]
+
+os.chdir("学習後")
+bn1 = mlp.BatchNormalization(gamma=1, beta=0)
+bn2 = mlp.BatchNormalization(gamma=1, beta=0)
+WV_init = defload(bn1, bn2)
+
+mlp.dCE_FNN(WV_init, M, M2, K,X,T,bn1,bn2)  # (A)
+y, a, z, z2, b, b2, outb, outb2 = mlp.FNN(WV_init, M, M2, K, X, bn1, bn2, True)
+for i in range(256):
+    maxi = 0
+    maxv = 0.0
+    for j in range(102):
+        if maxv < y[i, j]:
+            maxv = y[i, j]
+            maxi = j
+    print(SLLLS[maxi])
+
+
+
+
+
+
+
+
+
+
+
+def main1():
+    for iii in range(1867):
+        zdata = np.load("H:\\mhrchap\\triming3\\{0}.npz".format(iii))
+        X = zdata["x"]
+        X = np.float32(X[:, :] / 255.0)
+        N = X.shape[0]
+        T = np.zeros((N, K), dtype=np.float32)
+        zt = zdata["t"]
+        for i in range(N):
+            T[i, zt[i]] = np.float32(1.0)
+        X_train, X_test, T_train, T_test = XtoXtrain_Xtest2(X, T)
+        # メイン ---------------------------
+        #WV_init = mlp.CreateWV(D,M,M2,K)
+        bn1 = mlp.BatchNormalization(gamma=1, beta=0)
+        bn2 = mlp.BatchNormalization(gamma=1, beta=0)
+        WV_init = defload(bn1, bn2)
+        WV, Err_train, Err_test, bn1, bn2 = mlp.Fit_FNN(WV_init, M, M2, K, X_train, T_train, X_test, T_test, 0.005996, bn1, bn2)
+        if iii % 6 == 5:
+            y, _, _, _, _, _, _, _ = mlp.FNN(WV, M, M2, K, X_test, bn1, bn2, False)
+            anst, ansf = Seitoritu(T_test, y)
+            print(anst, ansf)
+            print("正答率{0}".format(anst / (anst + ansf)))
+            if Err_test < 0.0062:
+                np.save("WV0", WV)
+                np.save("bn1_gamma", bn1.gamma)
+                np.save("bn1_beta", bn1.beta)
+                np.save("bn1_momentum", bn1.momentum)
+                np.save("bn1_running_mean", bn1.running_mean)
+                np.save("bn1_running_var", bn1.running_var)
+                np.save("bn1_batch_size", bn1.batch_size)
+                np.save("bn1_xc", bn1.xc)
+                np.save("bn1_std", bn1.std)
+                np.save("bn1_dgamma", bn1.dgamma)
+                np.save("bn1_dbeta", bn1.dbeta)
+                np.save("bn2_gamma", bn2.gamma)
+                np.save("bn2_beta", bn2.beta)
+                np.save("bn2_momentum", bn2.momentum)
+                np.save("bn2_running_mean", bn2.running_mean)
+                np.save("bn2_running_var", bn2.running_var)
+                np.save("bn2_batch_size", bn2.batch_size)
+                np.save("bn2_xc", bn2.xc)
+                np.save("bn2_std", bn2.std)
+                np.save("bn2_dgamma", bn2.dgamma)
+                np.save("bn2_dbeta", bn2.dbeta)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

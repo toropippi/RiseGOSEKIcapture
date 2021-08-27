@@ -179,7 +179,7 @@
 
 
 
-#module BatchNormalization gamma,beta,momentum,running_mean,running_var,batch_size,xc,std,dgamma,dbeta,prg,krn1,shape1
+#module BatchNormalization gamma,beta,momentum,running_mean,running_var,xc,std,dgamma,dbeta,prg,krn1,shape1,xn
 
 #modterm
 	HCLReleaseBuffer gamma
@@ -190,11 +190,21 @@
 
 #modinit int shape1_,int ccnt,str loadpathname
 	shape1=shape1_
+	momentum=float(0.9)
+	
 	gamma=HCLCreateBuffer(shape1*4)
 	beta=HCLCreateBuffer(shape1*4)
+	dgamma=HCLCreateBuffer(shape1*4)
+	dbeta=HCLCreateBuffer(shape1*4)
 	running_mean=HCLCreateBuffer(shape1*4)
 	running_var=HCLCreateBuffer(shape1*4)
-
+	xc=HCLCreateBuffer(shape1*256*4)
+	xn=HCLCreateBuffer(shape1*256*4)
+	std=HCLCreateBuffer(shape1*4)
+	
+	
+	HCLIncRefcntCLBufferId gamma,beta,dgamma,dbeta,running_mean,running_var,xc,std,xn
+	
 	nploadm ""+loadpathname+"bn"+str(ccnt)+"_gamma.npy",gamma
 	nploadm ""+loadpathname+"bn"+str(ccnt)+"_beta.npy" ,beta
 	nploadm ""+loadpathname+"bn"+str(ccnt)+"_running_mean.npy",running_mean
@@ -215,11 +225,28 @@
 	krn1=HCLCreateKernel(prg,"krn1")
 	HCLSetkrns krn1,int64(0),int64(0),running_mean,running_var,gamma,beta
 	return
-	
-//BNforwrd BNmodule変数,Matmodule変数in,Matmodule変数out,train_flg
+
+
 #modfunc BNforwrd var Matmin,var Matmout,int train_flg
 	
 	if train_flg==1{//学習時
+		temv=HCLCreateBuffer(256*4)
+		HCLFillBuffer temv,float(1.0/256)
+		
+		mu=HCLBLAS_sgemv(HCLBLAS_sT(Matmin),temv)
+		HCLDoXf "B[i]=A[i]-C[i%s];",Matmin,xc,mu,shape1
+		xc2=HCLDoXf("OUT[i]=A[i]*A[i];",xc)
+		HCLBLAS_Set2DShape xc2,256,shape1
+		
+		var=HCLBLAS_sgemv(HCLBLAS_sT(xc2),temv)
+		HCLDoXf "O[i]=sqrt(A[i]+0.0000001);",var,std
+		HCLDoXf "C[i]=A[i]/B[i%s];",xc,std,xn,shape1
+		
+		HCLDoXf "A[i]=A[i]*a+(1.0-a)*B[i];",running_mean,mu,momentum
+		HCLDoXf "A[i]=A[i]*a+(1.0-a)*B[i];",running_var,var,momentum
+
+		HCLDoXf "O[i]=A[i]*B[i%s]+C[i%s];",xn,gamma,beta,Matmout,shape1
+		
 		/*
             # 正規化の計算
             mu = x.mean(axis=0)  # 平均
@@ -236,7 +263,7 @@
             self.running_mean = self.momentum * self.running_mean + (1 - self.momentum) * mu  # 過去の平均の情報
             self.running_var = self.momentum * self.running_var + (1 - self.momentum) * var  # 過去の分散の情報
 			//# 再変換
-			//out = self.gamma * xn + self.beta  # 式(6.8)
+			out = self.gamma * xn + self.beta  # 式(6.8)
 		*/
 	}else{  //# テスト時
 		/*
@@ -250,6 +277,57 @@
 		HCLSetkrns krn1,Matmin,Matmout
 		HCLDokrn1_sub krn1,int(rawnum*colnum),64
 	}
+	return
+
+
+#modcfunc BNbackward var Matmin
+	raw_ = HCLBLAS_Get2DShape(Matmin,0)
+	temv = HCLCreateBuffer(raw_*4)
+	HCLFillBuffer temv,float(1.0)
+	HCLBLAS_sgemv dbeta,HCLBLAS_sT(Matmin),temv
+	
+	HCLBLAS_Set2DShape xn,256,shape1
+	HCLDoXf "A[i]*=B[i];",xn,Matmin
+	HCLBLAS_sgemv dgamma,HCLBLAS_sT(xn),temv
+
+	dxn = HCLDoXf("OUT[i]=A[i]*B[i%s];",Matmin,gamma,shape1)
+	dxc = HCLDoXf("OUT[i]=A[i]/B[i%s];",dxn,std,shape1)
+
+	T = HCLDoXf("OUT[i]=-A[i]*B[i]/(C[i%s]*C[i%s]);",dxn,xc,std,shape1)
+	HCLBLAS_Set2DShape T,256,shape1
+	dstd = HCLBLAS_sgemv(HCLBLAS_sT(T),temv)
+
+	dvar=HCLDoXf("OUT[i]=A[i]*0.5/B[i];",dstd,std)
+
+	HCLDoXf "A[i]+=(2.0/256)*B[i]*C[i%s];",dxc,xc,dvar,shape1
+
+	HCLBLAS_Set2DShape dxc,256,shape1
+	dmu=HCLBLAS_sgemv(HCLBLAS_sT(dxc),temv)
+
+	dx=HCLDoXf("OUT[i]=A[i]-B[i%s]/256;",dxc,dmu,shape1)
+	
+/*
+        # 微分の計算
+        dbeta = dout.sum(axis=0)  # 調整後の平均
+        dgamma = np.sum(self.xn * dout, axis=0)  # 調整後の標準偏差
+        dxn = self.gamma * dout  # 正規化後のデータ
+        dxc = dxn / self.std  # 偏差
+        dstd = -np.sum((dxn * self.xc) / (self.std * self.std), axis=0)  # 標準偏差
+        dvar = 0.5 * dstd / self.std  # 分散
+        dxc += (2.0 / self.batch_size) * self.xc * dvar  # 偏差
+        dmu = np.sum(dxc, axis=0)  # 平均
+        dx = dxc - dmu / self.batch_size  # 入力データ
+
+        # インスタンス変数に保存
+        self.dgamma = dgamma
+        self.dbeta = dbeta
+*/
+	return str(dx)
+
+
+#modfunc BNmodyf double alpha
+	HCLDoXf "A[i]-=B[i]*a;",gamma,dgamma,float(alpha)
+	HCLDoXf "A[i]-=B[i]*a;",beta,dbeta,float(alpha)
 	return
 
 #global
