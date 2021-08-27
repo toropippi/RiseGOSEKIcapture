@@ -154,9 +154,9 @@
 	dw2=HCLBLAS_sgemm(delta12_3,matZ.0 ,1,1,0)//Š„‚éN
 	dw=HCLBLAS_sgemm(delta1_3,matX ,1,1,0)//Š„‚éN
 
-	HCLDoXf "A[i]-=a*B[i]/256;",matWV.0,dw ,float(alpha)
-	HCLDoXf "A[i]-=a*B[i]/256;",matWV.1,dw2,float(alpha)
-	HCLDoXf "A[i]-=a*B[i]/256;",matWV.2,dv ,float(alpha)
+	HCLDoXf "B[i]/=256;A[i]-=a*B[i];",matWV.0,dw ,float(alpha)
+	HCLDoXf "B[i]/=256;A[i]-=a*B[i];",matWV.1,dw2,float(alpha)
+	HCLDoXf "B[i]/=256;A[i]-=a*B[i];",matWV.2,dv ,float(alpha)
 
 	screen 2,640,480
 	mes HCLReadIndex_fp(matWV.0,0)
