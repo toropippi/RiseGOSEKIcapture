@@ -1,7 +1,7 @@
 #include "hspcl64.as"
 #include "NNmodule.hsp"
-//ここまで
-
+	randomize
+	HCLinit
 	SKLALLSTR="ＫＯ術","アイテム使用強化","ガード強化","ガード性能","キノコ大好き","ジャンプ鉄人","スタミナ急速回復","スタミナ奪取","ひるみ軽減","フルチャージ","ブレ抑制","ボマー","ランナー","火事場力","火属性攻撃強化","火耐性","会心撃【属性】","回避距離ＵＰ","回避性能","回復速度","滑走強化","貫通弾・貫通矢強化","気絶耐性","鬼火纏","逆恨み","逆襲","強化持続","業物","見切り","幸運","広域化","攻めの守勢","攻撃","高速変形","剛刃研磨","散弾・拡散矢強化","死中に活","耳栓","弱点特効","集中","匠","乗り名人","植生学","心眼","水属性攻撃強化","水耐性","睡眠属性強化","睡眠耐性","精霊の加護","早食い","装填拡張","装填速度","速射強化","属性やられ耐性","体術","体力回復量ＵＰ","耐震","弾丸節約","弾導強化","地質学","挑戦者","超会心","通常弾・連射矢強化","泥雪耐性","笛吹き名人","砥石使用高速化","特殊射撃強化","毒属性強化","毒耐性","鈍器使い","納刀術","破壊王","剥ぎ取り鉄人","爆破やられ耐性","爆破属性強化","抜刀術【技】","抜刀術【力】","反動軽減","飛び込み","氷属性攻撃強化","氷耐性","不屈","風圧耐性","腹減り耐性","壁面移動","泡沫の舞","砲術","砲弾装填","防御","麻痺属性強化","麻痺耐性","満足感","陽動","雷属性攻撃強化","雷耐性","龍属性攻撃強化","龍耐性","力の解放","渾身","翔蟲使い","達人芸","NULL"
 
 	//#N = 415676  # データの数
@@ -9,77 +9,53 @@
 	//M2 = 256 # 2層
 	//D = 128*22 # 入力層
 	//K = 102
-	alpha=0.3
-	
-	N=128*2//7100*2
+	alpha=0.2
+	N=256//=1batch
 	mlpLayerNum=4
 	dim mlpLayerNode,mlpLayerNum
 	mlpLayerNode=128*22,512,256,102
-	
-	//GPUデバイスせセット
-	HCLinit
-	sdim GOSEKIcapture3Setting,4096
-	notesel GOSEKIcapture3Setting
-	noteload "GOSEKIcapture3Setting.txt"
-	noteget p1,1
-	HCLSetDevice int(p1)
-	
-	
-	//X作成
-	matX=HCLCreateBuffer(N*mlpLayerNode.0*4)
-	HCLBLAS_Set2DShape matX,N,mlpLayerNode.0
-	HCLIncRefcntCLBufferId matX
-	gosub*kimeutiload
-	HCLBLAS_Set2DShape matX,N,mlpLayerNode.0
-	//npsave "matX.npy",matX
-	
-	//T作成ロード
-	matT=HCLCreateBuffer(N*mlpLayerNode.(mlpLayerNum-1)*4)
+
+	gosub*GPUデバイスせセット
+	gosub*X作成
+	gosub*T作成
+	gosub*cpu側にデータ全部載せる
 	gosub*kimeutiloadT//dim h_ansT,Nに結果がはいる
-	HCLFillBuffer matT,float(0)
-	HCLDoXi "F0[A[i]+i*102]=1.0;",HCLCreateBufferFrom(h_ansT),matT
-	HCLIncRefcntCLBufferId matT
-	HCLBLAS_Set2DShape matT,N,mlpLayerNode.(mlpLayerNum-1)
-	npsave "matT.npy",matT
+	gosub*loadwv//WV作成ロード
+	gosub*make_bzbnb
 	
-	//WV作成ロード
-	gosub*loadwv
-	
-	//b,zを作る
-	//a,yはb,zの最後の要素に対応
-	dim64 matB,mlpLayerNum-1
-	dim64 matZ,mlpLayerNum-1
-	dim64 matBNB,mlpLayerNum-2
-	
-		repeat mlpLayerNum-1
-		matB.cnt=HCLCreateBuffer(N*mlpLayerNode.(cnt+1)*4)
-		HCLBLAS_Set2DShape matB.cnt,N,mlpLayerNode.(cnt+1)
-		matZ.cnt=HCLCreateBuffer(N*mlpLayerNode.(cnt+1)*4)
-		HCLBLAS_Set2DShape matZ.cnt,N,mlpLayerNode.(cnt+1)
+	npsave "H:\\mhrchap\\開発フォルダ\\7ディープラーニング\\matT.npy",matT
+	npsave "H:\\mhrchap\\開発フォルダ\\7ディープラーニング\\matX.npy",matX
+
+	//メイン計算
+	//まいループでランダムにチョイスして256ミニバッチ学習
+	trainingflg=1
+	h_ce=float(0.0)
+		repeat 99999
+		if h_ce<float(0.03){
+			gosub*make_rndchiceXT
+			color 255,255,255
+			boxf
+			color 0,0,0
+			pos 0,0
+		}
+		gosub*FNNmain
+		gosub*CE_FFN
+		h_ce=HCLReadIndex_fp(ce,0)
+		
+		mes h_ce
+		
+		gosub*dCE_FNN
+		HCLGarbageCollectionNow
+		wait 10
 		loop
-	//Batch normの出力変数
-		repeat mlpLayerNum-2
-		matBNB.cnt=HCLCreateBuffer(N*mlpLayerNode.(cnt+1)*4)
-		HCLBLAS_Set2DShape matBNB.cnt,N,mlpLayerNode.(cnt+1)
-		loop
-	//Batch norm計算クラス＝モジュール変数
-		repeat mlpLayerNum-2
-		newmod BN,BatchNormalization,mlpLayerNode.(cnt+1),cnt+1,"学習後\\"
-		loop
-	
+
+
+
+	//結果
+	screen 2,640,480
+	trainingflg=0
 	gosub*FNNmain
-	gosub*CE_FFN
-	gosub*dCE_FNN
-
-
-
-
 	HCLdim_fpFromBuffer result,matZ.(mlpLayerNum-2)
-	gsel 0
-	title "結果処理中"
-	wait 1
-
-
 	sdim outstr,65536*16
 		repeat N
 		w=cnt
@@ -106,14 +82,40 @@
 
 
 
+*make_rndchiceXT
+	//まず全体から256個の重複なしランダムを作成したいが重複なしは大変なので重複ありで
+	dim rn,256
+		repeat 256
+		//rndf_geti rn.cnt,allpngnum*2
+		rn.cnt=(rnd(8192)*8192+rnd(8192))\(allpngnum*2)
+		loop
+	//X
+	gsel 9
+		repeat 256
+		xx=rnd(44)
+		yy=rnd(16)
+		pos 0,22*cnt
+		gcopy 10+rn.cnt/430,xx,yy+38*(rn.cnt\430),128,22
+		loop
+	//T
+	dim h_ansT2,256
+		repeat 256
+		h_ansT2.cnt=h_ansT.(rn.cnt)
+		loop
 
-
-
+	//X
+	gselToBufferFloat2 9,matX
+	
+	//T
+	HCLFillBuffer matT,float(0)
+	HCLDoXi "F0[A[i]+i*102]=1.0;",HCLCreateBufferFrom(h_ansT2),matT
+	gsel 0
+	return
 
 *FNNmain
 	HCLBLAS_sgemm matB.0,matX.0,matWV.0
 		repeat mlpLayerNum-2
-		BNforwrd BN.cnt,matB.cnt,matBNB.cnt,1
+		BNforwrd BN.cnt,matB.cnt,matBNB.cnt,trainingflg
 		HCLDoXf "A[i]=max(B[i],0.0f);",matZ.cnt,matBNB.cnt
 		HCLBLAS_sgemm matB.(cnt+1),matZ.cnt,matWV.(cnt+1)
 		loop
@@ -129,50 +131,71 @@
 
 //この中でalpha補正もする
 *dCE_FNN
-	delta2 = HCLDoXf("OUT[i]=A[i]-B[i];",matZ.(mlpLayerNum-2),matT)
+	dim64 delta,mlpLayerNum-1
+	
+	delta.(mlpLayerNum-2) = HCLDoXf("OUT[i]=A[i]-B[i];",matZ.(mlpLayerNum-2),matT)
 	raw_ = HCLBLAS_Get2DShape(matZ.(mlpLayerNum-2),0)
 	col_ = HCLBLAS_Get2DShape(matZ.(mlpLayerNum-2),1)
-	HCLBLAS_Set2DShape delta2,raw_,col_
+	HCLBLAS_Set2DShape delta.(mlpLayerNum-2),raw_,col_
+
+		repeat mlpLayerNum-2
+		ccnt2=mlpLayerNum-2-cnt
+		ccnt3=mlpLayerNum-3-cnt
+		
+		delta12_1 = HCLBLAS_sgemm(delta.ccnt2, matWV.ccnt2 ,0,0,1)
+		delta12_2 = HCLDoXf("OUT[i]=A[i]*(B[i]>0.0);",delta12_1,matBNB.ccnt3)
+		raw_ = HCLBLAS_Get2DShape(delta12_1,0)
+		col_ = HCLBLAS_Get2DShape(delta12_1,1)
+		HCLBLAS_Set2DShape delta12_2,raw_,col_
+		delta.ccnt3 = int64(BNbackward(BN.ccnt3,delta12_2))
+		HCLBLAS_Set2DShape delta.ccnt3,raw_,col_
+		loop
+
+		repeat mlpLayerNum-2
+		ccnt2=mlpLayerNum-2-cnt
+		ccnt3=mlpLayerNum-3-cnt
+		dv=HCLBLAS_sgemm(delta.ccnt2,matZ.ccnt3 ,1,1,0)//割るN
+		HCLDoXf "B[i]/=256;A[i]-=a*B[i];",matWV.ccnt2,dv,float(alpha)
+		loop
 	
-	delta12_1 = HCLBLAS_sgemm(delta2, matWV.2 ,0,0,1)
-	delta12_2 = HCLDoXf("OUT[i]=A[i]*(B[i]>0.0);",delta12_1,matBNB.1)
-	raw_ = HCLBLAS_Get2DShape(delta12_1,0)
-	col_ = HCLBLAS_Get2DShape(delta12_1,1)
-	HCLBLAS_Set2DShape delta12_2,raw_,col_
-	delta12_3 = int64(BNbackward(BN.1,delta12_2))
-	HCLBLAS_Set2DShape delta12_3,raw_,col_
+	dw=HCLBLAS_sgemm(delta.0,matX ,1,1,0)//割るN
+	HCLDoXf "B[i]/=256;A[i]-=a*B[i];",matWV.0,dw ,float(alpha)
 
-	delta1_1 = HCLBLAS_sgemm(delta12_3,matWV.1 ,0,0,1)
-	delta1_2 = HCLDoXf("OUT[i]=A[i]*(B[i]>0.0);",delta1_1,matBNB.0)
-	raw_ = HCLBLAS_Get2DShape(delta1_1,0)
-	col_ = HCLBLAS_Get2DShape(delta1_1,1)
-	HCLBLAS_Set2DShape delta1_2,raw_,col_
-	delta1_3 = int64(BNbackward(BN.0,delta1_2))
-	HCLBLAS_Set2DShape delta1_3,raw_,col_
-
-	dv=HCLBLAS_sgemm(delta2,matZ.1 ,1,1,0)//割るN
-	dw2=HCLBLAS_sgemm(delta12_3,matZ.0 ,1,1,0)//割るN
-	dw=HCLBLAS_sgemm(delta1_3,matX ,1,1,0)//割るN
-
-	HCLDoXf "A[i]-=a*B[i]/256;",matWV.0,dw ,float(alpha)
-	HCLDoXf "A[i]-=a*B[i]/256;",matWV.1,dw2,float(alpha)
-	HCLDoXf "A[i]-=a*B[i]/256;",matWV.2,dv ,float(alpha)
-
-	screen 2,640,480
-	mes HCLReadIndex_fp(matWV.0,0)
-	mes HCLReadIndex_fp(matWV.0,209)
-	mes HCLReadIndex_fp(matWV.1,0)
-	mes HCLReadIndex_fp(matWV.1,209)
-	mes HCLReadIndex_fp(matWV.2,0)
-	mes HCLReadIndex_fp(matWV.2,209)
-	stop
-	BNmodyf BN.1,alpha
-	BNmodyf BN.0,alpha
+		repeat mlpLayerNum-2
+		BNmodyf BN.cnt,alpha
+		BNmodyf BN.cnt,alpha
+		loop
 	return
 
 
 
 
+
+*make_bzbnb
+	//b,zを作る
+	//a,yはb,zの最後の要素に対応
+	dim64 matB,mlpLayerNum-1
+	dim64 matZ,mlpLayerNum-1
+	dim64 matBNB,mlpLayerNum-2
+	//B,Z
+		repeat mlpLayerNum-1
+		matB.cnt=HCLCreateBuffer(N*mlpLayerNode.(cnt+1)*4)
+		HCLBLAS_Set2DShape matB.cnt,N,mlpLayerNode.(cnt+1)
+		matZ.cnt=HCLCreateBuffer(N*mlpLayerNode.(cnt+1)*4)
+		HCLBLAS_Set2DShape matZ.cnt,N,mlpLayerNode.(cnt+1)
+		HCLIncRefcntCLBufferId matZ.cnt,matB.cnt
+		loop
+	//Batch normの出力変数 BNB
+		repeat mlpLayerNum-2
+		matBNB.cnt=HCLCreateBuffer(N*mlpLayerNode.(cnt+1)*4)
+		HCLBLAS_Set2DShape matBNB.cnt,N,mlpLayerNode.(cnt+1)
+		HCLIncRefcntCLBufferId matBNB.cnt
+		loop
+	//Batch norm計算クラス＝モジュール変数
+		repeat mlpLayerNum-2
+		newmod BN,BatchNormalization,mlpLayerNode.(cnt+1),cnt+1,"学習後\\"
+		loop
+	return
 
 *loadwv
 	exist "学習後\\WV0.npy"
@@ -190,57 +213,105 @@
 		offsetread+=sz
 		HCLIncRefcntCLBufferId matWV.cnt
 		loop
-	
 	return
 
 
-
-
-
-//101-114決め打ちロード
-*kimeutiload
-	buffer 1
-		repeat N/2
-		picload "H:\\mhrchap\\113\\"+cnt+".png"
-		memG=int64(gselToBufferFloat1(1))
-		clmemgcopy matX,memG,752+10,271+5,cnt*2
-		clmemgcopy matX,memG,752+10,271+5+51,cnt*2+1
-		HCLReleaseBuffer memG
+//buffer 10以降全て保存用buffer
+//buffer 9は128*22 *256として直接matXに転送できるようにする
+*cpu側にデータ全部載せる
+	//101-114決め打ちロード
+	//正解情報も
+	allpngnum=83953
+	dim fldr14num,14
+	
+	buffer 9,128,22*256
+	bufnum=(allpngnum*2+429)/430
+		repeat bufnum
+		buffer 10+cnt,128+44,38*430
 		loop
 	
+	w=0
+	filenoval=101
+		repeat 14
+		ccnt=cnt
+		chdir "H:\\mhrchap\\"+(filenoval+cnt)+""
+		dirlist p1,"*.png",1
+		notesel p1
+		fldr14num.cnt=noteinfo(0)
+			repeat noteinfo(0)
+			buffer 1:picload ""+cnt+".png"
+			gsel 10+w/430
+			pos 0,w*38
+			gcopy 1,762-26,276-8,128+44,38
+			w++
+			pos 0,w*38
+			gcopy 1,762-26,276-8+51,128+44,38
+			w++
+			loop
+		loop
+
+	//ここからは正解情報をロード
+	gsel 0
+	chdir s5
+	gosub*kimeutiloadT
 	return
 
-//101-114決め打ちロード
 *kimeutiloadT
-	dim h_ansT,N
-	exist "H:\\mhrchap\\113GOSEKICUIout.txt"
-	sdim ansdatastr,strsize
-	notesel ansdatastr
-	noteload "H:\\mhrchap\\113GOSEKICUIout.txt"
-	
-		repeat N/2
-		noteget p1,cnt
-		split p1,",",arr
-
-		ccnt=cnt*2
-		h_ansT.ccnt=101
-			repeat 101
-			if SKLALLSTR.cnt==arr.0{
-				h_ansT.ccnt=cnt
-				break
-			}
-			loop
-		ccnt++
-		h_ansT.ccnt=101
-			repeat 101
-			if SKLALLSTR.cnt==arr.2{
-				h_ansT.ccnt=cnt
-				break
-			}
+	dim h_ansT,allpngnum*2
+	w=0
+		repeat 14
+		ccnt=cnt
+		flnm="H:\\mhrchap\\"+(filenoval+cnt)+"GOSEKICUIout.txt"
+		exist flnm
+		sdim ansdatastr,strsize
+		notesel ansdatastr
+		noteload flnm
+			repeat fldr14num.cnt
+			noteget p1,cnt
+			split p1,",",arr
+			h_ansT.w=101
+				repeat 101
+				if SKLALLSTR.cnt==arr.0{
+					h_ansT.w=cnt
+					break
+				}
+				loop
+			w++
+			h_ansT.w=101
+				repeat 101
+				if SKLALLSTR.cnt==arr.2{
+					h_ansT.w=cnt
+					break
+				}
+				loop
+			w++
 			loop
 		loop
+	
 	return
 
+
+
+*GPUデバイスせセット
+	s5=dir_cur
+	sdim GOSEKIcapture3Setting,4096
+	notesel GOSEKIcapture3Setting
+	noteload "GOSEKIcapture3Setting.txt"
+	noteget p1,1
+	HCLSetDevice int(p1)
+	return
+
+*X作成
+	matX=HCLCreateBuffer(N*mlpLayerNode.0*4)
+	HCLBLAS_Set2DShape matX,N,mlpLayerNode.0
+	HCLIncRefcntCLBufferId matX
+	return
+
+*T作成
+	matT=HCLCreateBuffer(N*mlpLayerNode.(mlpLayerNum-1)*4)
+	HCLIncRefcntCLBufferId matT
+	HCLBLAS_Set2DShape matT,N,mlpLayerNode.(mlpLayerNum-1)
+	return
 #module
 #deffunc clmemgcopy var dst,var src,int x,int y,int ccnt
 	yy=720-22-y

@@ -172,14 +172,6 @@ def dCE_FNN(wv, M,M2, K, x, t, bn1, bn2):
     dw2 = np.dot(delta12_3.T, z) / N
     dw = np.dot(delta1_3.T, x) / N
 
-    print(dv.reshape(-1)[0])
-    print(dv.reshape(-1)[209])
-    print(dw2.reshape(-1)[0])
-    print(dw2.reshape(-1)[209])
-    print(dw.reshape(-1)[0])
-    print(dw.reshape(-1)[209])
-    stop
-
     # dw と dv を合体させて dwv とする
     dwv = np.c_[dw.reshape((1, M * D)), dw2.reshape((1, M2 * M)), dv.reshape((1,K * M2))]
     dwv = dwv.reshape(-1)

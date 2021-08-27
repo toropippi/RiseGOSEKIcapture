@@ -172,7 +172,12 @@ bn1 = mlp.BatchNormalization(gamma=1, beta=0)
 bn2 = mlp.BatchNormalization(gamma=1, beta=0)
 WV_init = defload(bn1, bn2)
 
-mlp.dCE_FNN(WV_init, M, M2, K,X,T,bn1,bn2)  # (A)
+print(mlp.CE_FNN(WV_init, M,M2, K, X, T,bn1 ,bn2,True))
+stop
+#wv=WV_init-0.3*mlp.dCE_FNN(WV_init, M, M2, K,X,T,bn1,bn2)  # (A)
+
+
+
 y, a, z, z2, b, b2, outb, outb2 = mlp.FNN(WV_init, M, M2, K, X, bn1, bn2, True)
 for i in range(256):
     maxi = 0

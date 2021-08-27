@@ -33,7 +33,21 @@
 	HCLReleaseBuffer vramchar3
 	gsel cg
 	return str(vout)
-
+//gselで指定した画面をrgbを1色にしてfloat型に、さらに0.0～1.0に色が収まるように
+//memidを入力する形式
+#deffunc gselToBufferFloat2 int gid,str vramids
+	vramid=int64(vramids)
+	if IMGprg==0:MatIOmodule_Init
+	cg=ginfo(3)
+	gsel gid
+	mref i,66
+	vramchar3=HCLCreateBufferFrom(i)
+	HCLSetkrns krngselToBufferFloat,vramchar3,vramid
+	HCLDoKrn1_sub krngselToBufferFloat,ginfo(12)*ginfo(13),64
+	HCLReleaseBuffer vramchar3
+	gsel cg
+	return
+	
 
 //name,memid,行,列
 #deffunc npsave str fname,var A
