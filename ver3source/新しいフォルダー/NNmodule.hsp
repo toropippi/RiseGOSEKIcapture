@@ -71,16 +71,14 @@
 	bsave fname,hostdata,varsize(hostdata),128
 	return
 
-//ロードは最初からサイズをあわせないといけない
-//こっちはモジュール型ではなく64bit intのmemidをいれればいいやつ
-#deffunc nploadm str fname,var A
+//64bit intのmemidをいれればいいやつ
+#deffunc npload str fname,var A
 	exist fname
 	sz=strsize-128
 	dim hostdata,strsize/4
 	bload fname,hostdata
 	HCLWriteBuffer A,hostdata,sz,0,128
 	return
-	
 #global
 
 
@@ -193,17 +191,23 @@
 
 
 
-#module BatchNormalization gamma,beta,momentum,running_mean,running_var,xc,std,dgamma,dbeta,prg,krn1,shape1,xn
+#module BatchNormalization gamma,beta,momentum,running_mean,running_var,xc,std,dgamma,dbeta,prg,krn1,shape1,xn,ccnt
 
 #modterm
 	HCLReleaseBuffer gamma
 	HCLReleaseBuffer beta
 	HCLReleaseBuffer running_mean
 	HCLReleaseBuffer running_var
+	HCLReleaseBuffer xc
+	HCLReleaseBuffer std
+	HCLReleaseBuffer dgamma
+	HCLReleaseBuffer dbeta
+	HCLReleaseBuffer xn
 	return
 
-#modinit int shape1_,int ccnt,str loadpathname
+#modinit int shape1_,int ccnt_,str loadpathname
 	shape1=shape1_
+	ccnt=ccnt_
 	momentum=float(0.9)
 	
 	gamma=HCLCreateBuffer(shape1*4)
@@ -219,10 +223,10 @@
 	
 	HCLIncRefcntCLBufferId gamma,beta,dgamma,dbeta,running_mean,running_var,xc,std,xn
 	
-	nploadm ""+loadpathname+"bn"+str(ccnt)+"_gamma.npy",gamma
-	nploadm ""+loadpathname+"bn"+str(ccnt)+"_beta.npy" ,beta
-	nploadm ""+loadpathname+"bn"+str(ccnt)+"_running_mean.npy",running_mean
-	nploadm ""+loadpathname+"bn"+str(ccnt)+"_running_var.npy",running_var
+	npload ""+loadpathname+"bn"+str(ccnt)+"_gamma.npy",gamma
+	npload ""+loadpathname+"bn"+str(ccnt)+"_beta.npy" ,beta
+	npload ""+loadpathname+"bn"+str(ccnt)+"_running_mean.npy",running_mean
+	npload ""+loadpathname+"bn"+str(ccnt)+"_running_var.npy",running_var
 
 	prg=HCLCreateProgramWithSource({"
 	__kernel void krn1(__global float *X,__global float *Xout
@@ -240,6 +244,13 @@
 	HCLSetkrns krn1,int64(0),int64(0),running_mean,running_var,gamma,beta
 	return
 
+
+#modfunc BNsave str loadpathname
+	npsave ""+loadpathname+"bn"+str(ccnt)+"_gamma.npy",gamma
+	npsave ""+loadpathname+"bn"+str(ccnt)+"_beta.npy" ,beta
+	npsave ""+loadpathname+"bn"+str(ccnt)+"_running_mean.npy",running_mean
+	npsave ""+loadpathname+"bn"+str(ccnt)+"_running_var.npy",running_var
+	return
 
 #modfunc BNforwrd var Matmin,var Matmout,int train_flg
 	

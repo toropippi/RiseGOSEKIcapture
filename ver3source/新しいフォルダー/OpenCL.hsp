@@ -9,7 +9,7 @@
 	//M2 = 256 # 2層
 	//D = 128*22 # 入力層
 	//K = 102
-	alpha=0.2
+	alpha=0.02
 	N=256//=1batch
 	mlpLayerNum=4
 	dim mlpLayerNode,mlpLayerNum
@@ -18,58 +18,85 @@
 	gosub*GPUデバイスせセット
 	gosub*X作成
 	gosub*T作成
+	DEBUGLOAD=0
 	gosub*cpu側にデータ全部載せる
-	gosub*kimeutiloadT//dim h_ansT,Nに結果がはいる
+	gosub*テストデータXT
 	gosub*loadwv//WV作成ロード
 	gosub*make_bzbnb
 
 	//save
 	//npsave "H:\\mhrchap\\開発フォルダ\\7ディープラーニング\\matT.npy",matT
 	//npsave "H:\\mhrchap\\開発フォルダ\\7ディープラーニング\\matX.npy",matX
-	bsave "h_ansT",h_ansT
-	bufnum=(allpngnum*2+429)/430
-		repeat bufnum
-		gsel 10+cnt
-		bmpsave ""+(10+cnt)+".bmp"
-		loop
-
-
+	if DEBUGLOAD!=0{
+		bsave "h_ansT",h_ansT
+		bufnum=(allpngnum*2+429)/430
+			repeat bufnum
+			gsel 10+cnt
+			bmpsave ""+(10+cnt)+".bmp"
+			loop
+	}
+	gsel 0
 
 
 	//メイン計算
 	//まいループでランダムにチョイスして256ミニバッチ学習
-	trainingflg=1
+
 	h_ce=float(0.0)
-		repeat 99999
+		repeat 1199
+		maincnt=cnt
 		if h_ce<float(0.03){
 			gosub*make_rndchiceXT
+			//screen 3,128,22*256:pos 0,0:gcopy 9,0,0,128,22*256
+			gsel 0
+			title ""+maincnt+""
 			color 255,255,255
 			boxf
 			color 0,0,0
 			pos 0,0
 		}
+		//テスト
+		trainingflg=0
+		matX_=matXtest
 		gosub*FNNmain
+		matT_=matTtest
 		gosub*CE_FFN
+		ce_test=ce
+		//学習
+		trainingflg=1
+		matX_=matX
+		gosub*FNNmain
+		matT_=matT
+		gosub*CE_FFN
+		h_cetest=HCLReadIndex_fp(ce_test,0)
 		h_ce=HCLReadIndex_fp(ce,0)
-		
-		mes h_ce
-		
+		mes ""+h_ce+"\t"+h_cetest+""
+		//gosub*結果
 		gosub*dCE_FNN
 		HCLGarbageCollectionNow
-		wait 10
+		await 1
+		if maincnt<400:await 10
+		if maincnt<100:await 20
+
+		getkey key,27
+		if key:gosub*WVBNsave:end
+		if maincnt>230{
+			if h_cetest<float(0.00004):gosub*WVBNsave:stop
+		}
 		loop
 
+	end
+	stop
 
 
-	//結果
-	screen 2,640,480
+
+
+*結果
 	trainingflg=0
-	gosub*FNNmain
 	HCLdim_fpFromBuffer result,matZ.(mlpLayerNum-2)
 	sdim outstr,65536*16
 		repeat N
 		w=cnt
-		maxd=float(0)
+		maxd=float(-100.0)
 		maxi=-1
 			repeat 102
 			sc=result.(w*102+cnt)
@@ -78,33 +105,84 @@
 				maxi=cnt
 			}
 			loop
-		outstr+=SKLALLSTR.maxi+"\n"
+		if maxi<0:dialog "a"+maxi+" "+sc+"",0:end
+
+		if h_ansT2.cnt==maxi{
+			outstr+="●"
+		}else{
+			outstr+="×"
+		}
+		outstr+=""+(str(SKLALLSTR.(h_ansT2.cnt)))+"\t"+SKLALLSTR.maxi+"\t"+maxd+"\n"
 		loop
 	
+	screen 2,640,480
 	pos 0,0
 	mesbox outstr,630,470,5
-	stop
+	gsel 0
+	return
 
 
 
+*テストデータXT
+	//X
+	matXtest=HCLCreateBuffer(N*mlpLayerNode.0*4)
+	HCLBLAS_Set2DShape matXtest,N,mlpLayerNode.0
+	HCLIncRefcntCLBufferId matXtest
+	
+	gsel 9
+	testidstart=allpngnum*2-256
+		repeat 256
+		cc=(testidstart+cnt)
+		xx=28
+		yy=8
+		pos 0,255*22-22*cnt
+		gcopy 10+cc/430,xx,yy+38*(cc\430),128,22
+		loop
+							buffer 8:picload "Z:\\test00.png"//はぎとり=72
+							buffer 7:picload "Z:\\test01.png"//逆襲=25
+							buffer 6:picload "Z:\\test02.png"//見切り=28
+							buffer 5:picload "Z:\\test03.png"//壁面移動=84
+							gsel 9
+								repeat 256
+								pos 0,255*22-22*cnt
+								gcopy 8-cnt/64,0,0,128,22
+								loop
+	gselToBufferFloat2 9,str(matXtest)
+	gsel 0
 
+	//T
+	matTtest=HCLCreateBuffer(N*mlpLayerNode.(mlpLayerNum-1)*4)
+	HCLIncRefcntCLBufferId matTtest
+	HCLBLAS_Set2DShape matTtest,N,mlpLayerNode.(mlpLayerNum-1)
 
-
-
+	dim h_ansT3,256
+		repeat 256
+		h_ansT3.cnt=h_ansT.(cnt+testidstart)
+		loop
+								repeat 64,0  :h_ansT3.cnt=72:loop
+								repeat 64,64 :h_ansT3.cnt=25:loop
+								repeat 64,128:h_ansT3.cnt=28:loop
+								repeat 64,192:h_ansT3.cnt=84:loop
+	HCLFillBuffer matTtest,float(0)
+	HCLDoXi "F0[A[i]+i*102]=1.0;",HCLCreateBufferFrom(h_ansT3),matTtest
+	return
 
 *make_rndchiceXT
 	//まず全体から256個の重複なしランダムを作成したいが重複なしは大変なので重複ありで
 	dim rn,256
 		repeat 256
-		//rndf_geti rn.cnt,allpngnum*2
 		rn.cnt=(rnd(8192)*8192+rnd(8192))\(allpngnum*2)
+		//rn.cnt=(rnd(8192)*8192+rnd(8192))\((allpngnum-128)*2)
 		loop
 	//X
 	gsel 9
+	xxcrng=limit((maincnt-190)/5,1,44)
+	yycrng=limit((maincnt-190)/9,1,16)
 		repeat 256
-		xx=rnd(44)
-		yy=rnd(16)
-		pos 0,22*cnt
+		xx=28-xxcrng*28/44+rnd(xxcrng)//rnd(44)
+		xx=limit(xx,0,44)
+		yy=8-yycrng/2+rnd(yycrng)//rnd(16)
+		pos 0,255*22-22*cnt
 		gcopy 10+rn.cnt/430,xx,yy+38*(rn.cnt\430),128,22
 		loop
 	//T
@@ -114,7 +192,7 @@
 		loop
 
 	//X
-	gselToBufferFloat2 9,matX
+	gselToBufferFloat2 9,str(matX)
 	
 	//T
 	HCLFillBuffer matT,float(0)
@@ -122,8 +200,10 @@
 	gsel 0
 	return
 
+
+//matX_に好きなのを代入してgosubしてください
 *FNNmain
-	HCLBLAS_sgemm matB.0,matX.0,matWV.0
+	HCLBLAS_sgemm matB.0,matX_,matWV.0
 		repeat mlpLayerNum-2
 		BNforwrd BN.cnt,matB.cnt,matBNB.cnt,trainingflg
 		HCLDoXf "A[i]=max(B[i],0.0f);",matZ.cnt,matBNB.cnt
@@ -134,9 +214,10 @@
 	//matBがaに相当
 	return
 
+//matT_に好きなのを代入してgosubしてください
 *CE_FFN
 	nplgy=HCLDoXf("float x=A[i];if (x<=0.0)x=0.0000000000001;OUT[i]=-log(x)/256;",matZ.(mlpLayerNum-2))
-	ce=HCLBLAS_sdot(nplgy,matT)
+	ce=HCLBLAS_sdot(nplgy,matT_)
 	return
 
 //この中でalpha補正もする
@@ -173,11 +254,8 @@
 
 		repeat mlpLayerNum-2
 		BNmodyf BN.cnt,alpha
-		BNmodyf BN.cnt,alpha
 		loop
 	return
-
-
 
 
 
@@ -248,22 +326,40 @@
 		dirlist p1,"*.png",1
 		notesel p1
 		fldr14num.cnt=noteinfo(0)
+		if DEBUGLOAD==0:continue
 			repeat noteinfo(0)
 			buffer 1:picload ""+cnt+".png"
 			gsel 10+w/430
-			pos 0,w*38
+			pos 0,(w\430)*38
 			gcopy 1,762-26,276-8,128+44,38
 			w++
-			pos 0,w*38
+			pos 0,(w\430)*38
 			gcopy 1,762-26,276-8+51,128+44,38
 			w++
 			loop
 		loop
+	chdir s5
+		
+	if DEBUGLOAD==0{
+			repeat bufnum
+			gsel 10+cnt
+			picload ""+(10+cnt)+".bmp"
+			gsel 0
+			title ""+cnt+"":await 1
+			loop
+	}
+	title "画像ロード"
 
 	//ここからは正解情報をロード
 	gsel 0
 	chdir s5
-	gosub*kimeutiloadT
+	if DEBUGLOAD!=0{
+		gosub*kimeutiloadT
+	}else{
+		dim h_ansT,allpngnum*2
+		bload "h_ansT",h_ansT
+	}
+	title "正解情報ロード"
 	return
 
 *kimeutiloadT
@@ -297,7 +393,6 @@
 			w++
 			loop
 		loop
-	
 	return
 
 
@@ -322,6 +417,19 @@
 	HCLIncRefcntCLBufferId matT
 	HCLBLAS_Set2DShape matT,N,mlpLayerNode.(mlpLayerNum-1)
 	return
+
+
+*WVBNsave
+	//WVから
+		repeat mlpLayerNum-1
+		npsave "学習後2\\matWV"+cnt+".npy",matWV.cnt
+		loop
+	//Batch normの内部変数
+		repeat mlpLayerNum-2
+		BNsave BN.cnt,"学習後2\\"
+		loop
+	return
+
 #module
 #deffunc clmemgcopy var dst,var src,int x,int y,int ccnt
 	yy=720-22-y
